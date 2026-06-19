@@ -51,15 +51,15 @@ module.exports = {
       if (content.includes(PROPOSE_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      // Insert before "Read context files" step, or before "Create artifacts" if not found
-      const readContext = content.indexOf('Read context files');
-      if (readContext === -1) {
-        // Fallback: insert before the first numbered step or at the top after intro
-        const firstStep = content.search(/\n\d+\.\s/);
-        const insertAt = firstStep !== -1 ? firstStep : content.length;
-        return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+      // propose 的步骤4是 "Create artifacts in sequence" —— 在这之前插入 skill 对齐
+      // (对齐应在写文档前,但在确定 change name 之后)
+      const step4 = content.search(/4\.\s+\*\*Create artifacts in sequence/);
+      if (step4 === -1) {
+        // Fallback: 文件末尾追加
+        return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
       }
-      const insertAt = content.lastIndexOf('\n', readContext);
+      // 在步骤4的行首之前插入
+      const insertAt = content.lastIndexOf('\n', step4);
       return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
     },
     'openspec-apply-change': (content) => {
@@ -90,6 +90,4 @@ module.exports = {
 
   // 不需要单独的 skill 文件 (逻辑全在 patch 里)
   skillTemplate: null,
-
-  markers: [PROPOSE_MARKER, APPLY_MARKER],
 };

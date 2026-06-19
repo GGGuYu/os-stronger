@@ -14,10 +14,12 @@
 
 主 agent 会在启动你时给出具体文件路径。通常包括:
 
-1. **需求总结文件**(如 `.os-stronger/requirement-summary.md`) —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
-2. **tasks.md**(如 `openspec/changes/<change-name>/tasks.md`) —— 本次 OpenSpec 的 task 列表。了解主 agent 做了哪些步骤、是否都标记完成。
-3. **design.md**(如 `openspec/changes/<change-name>/design.md`) —— 如有,了解设计意图。
-4. **`git diff`** —— 相对基线的实际改动文本。
+1. **`.os-stronger/review-guide.md`** —— 你正在读的这个文件,审查规则和输出格式。
+2. **`.os-stronger/requirement-summary.md`** —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
+3. **`openspec/changes/<change-name>/tasks.md`** —— 本次 OpenSpec 的 task 列表。了解主 agent 做了哪些步骤、是否都标记完成。
+4. **`openspec/changes/<change-name>/design.md`** —— 如有,了解设计意图。
+5. **`openspec/changes/<change-name>/proposal.md`** —— 如有,了解原始需求。
+6. **`git diff HEAD`** —— 相对上次提交的实际改动文本。非 git 项目则直接读 tasks.md 里涉及的文件。
 
 以主 agent 给你的路径为准。读完这些你才有判断依据。**不要凭空猜测**没读到的内容。
 

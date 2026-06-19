@@ -110,8 +110,7 @@ init 后项目里会多出：
 ├── .claude/skills/
 │   ├── openspec-apply-change/        ← 被 patch 了
 │   ├── openspec-propose/             ← 被 patch 了
-│   ├── os-stronger-review/           ← review skill 说明
-│   └── os-stronger-skill-align/      ← skill-align skill 说明 (如有)
+│   └── os-stronger-review/           ← review skill 说明 (启用 review 时创建)
 └── ...（其他工具的 skills 目录同理）
 ```
 

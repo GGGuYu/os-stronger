@@ -1,0 +1,20 @@
+{
+  "name": "os-stronger",
+  "version": "0.1.0",
+  "description": "OpenSpec enhancement layer — modular, pluggable, zero-dependency",
+  "bin": {
+    "os-stronger": "bin/os-stronger"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GGGuYu/os-stronger.git"
+  }
+}

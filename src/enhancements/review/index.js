@@ -16,7 +16,9 @@ ${PATCH_MARKER}
           - \`.os-stronger/review-guide.md\` — review rules and output format
           - \`.os-stronger/requirement-summary.md\` — what to check against
           - \`openspec/changes/<name>/tasks.md\` — what was done
-          - \`git diff\` — what actually changed
+          - \`openspec/changes/<name>/design.md\` — design intent (if exists)
+          - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
+          - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
           If this is Review 2, add: "This is the FINAL review cycle. Only flag CRITICAL issues that would break functionality."
        d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
           1. Is it actually TRUE? (use your knowledge of the codebase)
@@ -59,13 +61,9 @@ module.exports = {
       if (content.includes(PROPOSE_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      const guardrails = content.lastIndexOf('**Guardrails**');
-      if (guardrails === -1) {
-        return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
-      }
-      const after = content.indexOf('\n---', guardrails);
-      const insertAt = after !== -1 ? after : content.length;
-      return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+      // propose 的 Guardrails 是最后一节,其后通常无 --- 分隔符。
+      // 显式追加到文件末尾(比依赖 indexOf('\n---') 更可靠)。
+      return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
     },
   },
 
@@ -76,6 +74,4 @@ module.exports = {
 
   // 要创建的 skill 说明 (放在每个工具的 skills/os-stronger-review/)
   skillTemplate: 'skill.md',
-
-  markers: [PATCH_MARKER, PROPOSE_MARKER],
 };

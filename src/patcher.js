@@ -15,7 +15,9 @@ function findOpenSpecSkills(projectDir) {
   catch (e) { return found; }
 
   for (const entry of rootEntries) {
-    if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
+    // 只扫真实目录,跳过符号链接(避免外溢到 home 等大目录)
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    if (!entry.name.startsWith('.')) continue;
     if (entry.name === '.git' || entry.name === '.os-stronger') continue;
 
     const skillsDir = path.join(projectDir, entry.name, 'skills');

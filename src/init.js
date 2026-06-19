@@ -102,6 +102,10 @@ async function init(projectDir, options = {}) {
   let selectedIds;
   if (options.enhancements) {
     selectedIds = options.enhancements;
+  } else if (!process.stdin.isTTY) {
+    // 非 TTY(如 CI/管道)不默认全选——修改 skill 文件有副作用,要求显式指定
+    err('非交互式环境需用 --enhancements 显式指定增强(如 --enhancements review,skill-align)');
+    return false;
   } else {
     const opts = Object.values(enhancements).map(e => ({ id: e.id, label: e.label }));
     selectedIds = await multiSelect(opts);

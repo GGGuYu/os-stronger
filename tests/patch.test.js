@@ -1,0 +1,186 @@
+// tests/patch.test.js
+// patch 函数单元测试:喂真实 OpenSpec skill 文本快照,验证 patch/幂等/恢复。
+// 运行: node tests/patch.test.js
+
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const reviewEnh = require('../src/enhancements/review');
+const skillAlignEnh = require('../src/enhancements/skill-align');
+const patcher = require('../src/patcher');
+
+let PASS = 0, FAIL = 0;
+function test(name, fn) {
+  try { fn(); console.log('  ✓ ' + name); PASS++; }
+  catch (e) { console.log('  ✗ ' + name + '\n    ' + e.message); FAIL++; }
+}
+
+// 真实 OpenSpec apply-change SKILL.md 片段(含 all_done 行)
+const APPLY_CHANGE_SAMPLE = `4. **Read context files**
+
+   Read every file path listed under contextFiles.
+
+5. **Show current progress**
+
+   - If \`state: "all_done"\`: congratulate, suggest archive
+   - Otherwise: proceed to implementation
+`;
+
+// 真实 OpenSpec propose SKILL.md 片段(含步骤4和 Guardrails)
+const PROPOSE_SAMPLE = `1. **If no clear input provided, ask what they want to build**
+
+2. **Create the change directory**
+
+3. **Get the artifact build order**
+
+4. **Create artifacts in sequence until apply-ready**
+
+   Use the TodoWrite tool to track progress.
+
+5. **Show final status**
+
+**Guardrails**
+- Keep going through tasks until done
+- Always read context files before starting
+`;
+
+console.log('os-stronger patch 单元测试\n');
+
+// ─── review 增强 ───
+test('review: patchApplyChange 注入 review workflow', () => {
+  const result = reviewEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
+  assert.ok(result.patched, '应 patched=true');
+  assert.ok(result.content.includes('OS-STRONGER-REVIEW'), '应含 marker');
+  assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
+  assert.ok(!result.content.match(/all_done.*congratulate.*suggest archive/), '原文 all_done 行应被替换');
+});
+
+test('review: patchApplyChange 幂等(再 patch 返回 already-patched)', () => {
+  const r1 = reviewEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
+  const r2 = reviewEnh.patches['openspec-apply-change'](r1.content);
+  assert.strictEqual(r2.patched, false);
+  assert.strictEqual(r2.reason, 'already-patched');
+});
+
+test('review: patchApplyChange 找不到 pattern 返回 pattern-not-found', () => {
+  const result = reviewEnh.patches['openspec-apply-change']('no all_done here');
+  assert.strictEqual(result.patched, false);
+  assert.strictEqual(result.reason, 'pattern-not-found');
+});
+
+test('review: patchPropose 追加到末尾', () => {
+  const result = reviewEnh.patches['openspec-propose'](PROPOSE_SAMPLE);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-REVIEW-PROPOSE'));
+  // 应在 Guardrails 之后
+  const markerPos = result.content.indexOf('OS-STRONGER-REVIEW-PROPOSE');
+  const guardrailsPos = result.content.indexOf('**Guardrails**');
+  assert.ok(markerPos > guardrailsPos, '应在 Guardrails 之后');
+});
+
+test('review: patchPropose 幂等', () => {
+  const r1 = reviewEnh.patches['openspec-propose'](PROPOSE_SAMPLE);
+  const r2 = reviewEnh.patches['openspec-propose'](r1.content);
+  assert.strictEqual(r2.patched, false);
+  assert.strictEqual(r2.reason, 'already-patched');
+});
+
+// ─── skill-align 增强 ───
+test('skill-align: patchPropose 注入到步骤4之前', () => {
+  const result = skillAlignEnh.patches['openspec-propose'](PROPOSE_SAMPLE);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
+  // 应在步骤4之前,步骤3之后
+  const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-PROPOSE');
+  const step3Pos = result.content.indexOf('3. **Get the artifact');
+  const step4Pos = result.content.indexOf('4. **Create artifacts');
+  assert.ok(markerPos > step3Pos, '应在步骤3之后');
+  assert.ok(markerPos < step4Pos, '应在步骤4之前');
+});
+
+test('skill-align: patchPropose 幂等', () => {
+  const r1 = skillAlignEnh.patches['openspec-propose'](PROPOSE_SAMPLE);
+  const r2 = skillAlignEnh.patches['openspec-propose'](r1.content);
+  assert.strictEqual(r2.patched, false);
+  assert.strictEqual(r2.reason, 'already-patched');
+});
+
+test('skill-align: patchApplyChange 注入 skill 约定提醒', () => {
+  const result = skillAlignEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'));
+  assert.ok(result.content.includes('Skill Alignment'), '应含 Skill Alignment 检查');
+});
+
+test('skill-align: patchApplyChange 幂等', () => {
+  const r1 = skillAlignEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
+  const r2 = skillAlignEnh.patches['openspec-apply-change'](r1.content);
+  assert.strictEqual(r2.patched, false);
+  assert.strictEqual(r2.reason, 'already-patched');
+});
+
+// ─── 多增强共存 ───
+test('多增强: review + skill-align 都 patch propose 不冲突', () => {
+  let content = PROPOSE_SAMPLE;
+  // review 先 patch propose
+  content = reviewEnh.patches['openspec-propose'](content).content;
+  // skill-align 再 patch propose
+  const result = skillAlignEnh.patches['openspec-propose'](content);
+  assert.ok(result.patched, 'skill-align 应能 patch 已被 review patch 过的 propose');
+  assert.ok(result.content.includes('OS-STRONGER-REVIEW-PROPOSE'), 'review marker 应还在');
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'), 'skill-align marker 应在');
+});
+
+test('多增强: review + skill-align 都 patch apply-change 不冲突', () => {
+  let content = APPLY_CHANGE_SAMPLE;
+  content = reviewEnh.patches['openspec-apply-change'](content).content;
+  const result = skillAlignEnh.patches['openspec-apply-change'](content);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-REVIEW'), 'review marker 应还在');
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'), 'skill-align marker 应在');
+});
+
+// ─── patcher 通用工具 ───
+test('patcher: backup 只在不存在时做(防覆盖)', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-test-'));
+  const tmpFile = path.join(tmpDir, 'test.txt');
+  fs.writeFileSync(tmpFile, 'original');
+
+  // 第一次 backup
+  patcher.backup(tmpFile);
+  const bakContent1 = fs.readFileSync(tmpFile + '.os-stronger.bak', 'utf8');
+  assert.strictEqual(bakContent1, 'original');
+
+  // 修改文件,再 backup(应不覆盖)
+  fs.writeFileSync(tmpFile, 'modified');
+  patcher.backup(tmpFile);
+  const bakContent2 = fs.readFileSync(tmpFile + '.os-stronger.bak', 'utf8');
+  assert.strictEqual(bakContent2, 'original', 'backup 应保持原始内容');
+
+  // restore 应恢复原始
+  patcher.restore(tmpFile);
+  assert.strictEqual(fs.readFileSync(tmpFile, 'utf8'), 'original');
+  assert.ok(!fs.existsSync(tmpFile + '.os-stronger.bak'), 'backup 应被删除');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('patcher: findOpenSpecSkills 跳过符号链接', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-scan-'));
+  // 创建真实 .claude 目录带 openspec skill
+  fs.mkdirSync(path.join(tmpDir, '.claude', 'skills', 'openspec-apply-change'), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'), 'test');
+  // 创建符号链接 .evil -> /tmp (不应被扫描)
+  try { fs.symlinkSync(os.tmpdir(), path.join(tmpDir, '.evil')); } catch (e) { /* skip if symlink fails */ }
+
+  const found = patcher.findOpenSpecSkills(tmpDir);
+  assert.ok(found.some(s => s.toolDir === '.claude'), '应找到 .claude');
+  assert.ok(!found.some(s => s.toolDir === '.evil'), '不应扫描符号链接 .evil');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
+process.exit(FAIL > 0 ? 1 : 0);
