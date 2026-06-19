@@ -12,7 +12,7 @@ function err(msg) { console.error('  \x1b[31m✗\x1b[0m ' + msg); }
 function info(msg) { console.log('  ' + msg); }
 
 // ─── Globals ───
-const REVIEW_GUIDE_PATH = '.todopro/review-guide.md';
+const REVIEW_GUIDE_PATH = '.os-stronger/review-guide.md';
 
 /**
  * Main init function.
@@ -76,7 +76,7 @@ function init(projectDir, options = {}) {
     }
   }
 
-  // 4. Create .todopro/review-guide.md
+  // 4. Create .os-stronger/review-guide.md
   const reviewGuidePath = path.join(projectDir, REVIEW_GUIDE_PATH);
   const reviewGuideDir = path.dirname(reviewGuidePath);
   fs.mkdirSync(reviewGuideDir, { recursive: true });

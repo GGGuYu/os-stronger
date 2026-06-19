@@ -26,15 +26,15 @@ os-stronger init --restore    # Remove enhancements, restore originals
 1. Scans project for OpenSpec skill installations (supports all 30 tools OpenSpec supports)
 2. Patches `openspec-apply-change/SKILL.md` — injects review step at `all_done`
 3. Patches `openspec-propose/SKILL.md` — adds review reminder
-4. Creates `.todopro/review-guide.md` — subagent review rules
+4. Creates `.os-stronger/review-guide.md` — subagent review rules
 5. Creates `os-stronger/SKILL.md` — skill description
 
 ## Review workflow
 
 When all OpenSpec tasks complete:
 
-1. **Check**: `.todopro/review-guide.md` exists → trigger review
-2. **Write**: requirement summary to `.todopro/requirement-summary.md`
+1. **Check**: `.os-stronger/review-guide.md` exists → trigger review
+2. **Write**: requirement summary to `.os-stronger/requirement-summary.md`
 3. **Review**: launch subagent (reads review-guide.md, requirement-summary, tasks.md, git diff)
 4. **Evaluate**: main agent judges each finding — true? worth fixing NOW?
 5. **Fix**: create `Review N Fix - <desc>` tasks for accepted findings

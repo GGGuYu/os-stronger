@@ -2,7 +2,7 @@
 
 > 本文件由 os-stronger init 创建。
 > 你是一个独立的 review 子 agent,在全新上下文中运行,与主 agent 的对话历史完全无关。
-> 主 agent 已把本次需求总结写入 `.todopro/requirement-summary.md`,请你据此独立审查本次改动。
+> 主 agent 已把本次需求总结写入 `.os-stronger/requirement-summary.md`,请你据此独立审查本次改动。
 
 ---
 
@@ -14,7 +14,7 @@
 
 主 agent 会在启动你时给出具体文件路径。通常包括:
 
-1. **需求总结文件**(如 `.todopro/requirement-summary.md`) —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
+1. **需求总结文件**(如 `.os-stronger/requirement-summary.md`) —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
 2. **tasks.md**(如 `openspec/changes/<change-name>/tasks.md`) —— 本次 OpenSpec 的 task 列表。了解主 agent 做了哪些步骤、是否都标记完成。
 3. **design.md**(如 `openspec/changes/<change-name>/design.md`) —— 如有,了解设计意图。
 4. **`git diff`** —— 相对基线的实际改动文本。

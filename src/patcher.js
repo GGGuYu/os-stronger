@@ -27,14 +27,14 @@ const TOOL_SKILLS_DIRS = [
 const REVIEW_WORKFLOW_BLOCK = `
 ${PATCH_MARKER}
    - If \`state: "all_done"\`:
-     - Check if \`.todopro/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you).
+     - Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you).
      - If it does NOT exist: congratulate, suggest archive (unchanged behavior).
      - If it EXISTS:
-       a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.todopro/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
+       a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
        b. **Determine review cycle**: Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). The current cycle is that N+1. If no completed review markers exist, this is Review 1. (If Review 1 Fix tasks still have \`[ ]\` items, you are still in Review 1 — do NOT advance to Review 2.)
        c. **Launch review subagent**: Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
-          - \`.todopro/review-guide.md\` — review rules and output format
-          - \`.todopro/requirement-summary.md\` — what to check against
+          - \`.os-stronger/review-guide.md\` — review rules and output format
+          - \`.os-stronger/requirement-summary.md\` — what to check against
           - \`openspec/changes/<name>/tasks.md\` — what was done
           - \`git diff\` — what actually changed
           If this is Review 2, add: "This is the FINAL review cycle. Only flag CRITICAL issues that would break functionality."
@@ -56,7 +56,7 @@ ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `
 ${PROPOSE_MARKER}
-**os-stronger review reminder**: If this project has os-stronger enabled (check if \`.todopro/review-guide.md\` exists), consider adding a final note in the generated tasks.md: "After all tasks complete, the review workflow in openspec-apply-change will trigger automatically — no manual action needed."
+**os-stronger review reminder**: If this project has os-stronger enabled (check if \`.os-stronger/review-guide.md\` exists), consider adding a final note in the generated tasks.md: "After all tasks complete, the review workflow in openspec-apply-change will trigger automatically — no manual action needed."
 ${PROPOSE_MARKER}`;
 
 // ─── Patch functions ───
