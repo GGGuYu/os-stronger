@@ -223,6 +223,16 @@ test('skill-align: propose 步骤4标题变了仍匹配(L2 Steps 之后)', () =>
   assert.ok(markerPos > stepsPos, '应在 Steps 之后');
 });
 
+test('skill-align: propose 无 Steps 但有数字步骤 → L3 插第一个步骤前', () => {
+  const modified = 'Some intro text\n\n1. Do something\n2. Do another thing\n';
+  const result = skillAlignEnh.patches['openspec-propose'](modified);
+  assert.ok(result.patched, 'L3 应命中(插第一个步骤前)');
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
+  const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-PROPOSE');
+  const firstStepPos = result.content.indexOf('1. Do something');
+  assert.ok(markerPos < firstStepPos, '应在第一个数字步骤之前');
+});
+
 test('skill-align: propose 完全没有 Steps 仍追加(L3 末尾)', () => {
   const modified = 'Some random skill file without Steps section';
   const result = skillAlignEnh.patches['openspec-propose'](modified);

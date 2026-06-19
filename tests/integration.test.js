@@ -188,5 +188,39 @@ test('集成: 无 OpenSpec 时 init 报错退出', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ─── 无效增强 id 报错 ───
+test('集成: --enhancements typo 报错退出,不修改 .gitignore', () => {
+  const dir = setupFakeProject();
+  let exitCode = 0;
+  try {
+    execSync(`node "${BIN}" init --enhancements reviw`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) { exitCode = e.status; }
+  assert.ok(exitCode !== 0, 'typo 应非 0 退出');
+  assert.ok(!fs.existsSync(path.join(dir, '.gitignore')), '不应创建 .gitignore');
+  // skill 文件不应被修改
+  const apply = fs.readFileSync(path.join(dir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'), 'utf8');
+  assert.ok(!apply.includes('OS-STRONGER'), '不应有 patch 痕迹');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ─── restore 清理 .gitignore ───
+test('集成: restore 清理 .gitignore 里的 os-stronger 规则', () => {
+  const dir = setupFakeProject();
+  // 先写一个有内容的 .gitignore
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\ndist/\n');
+  runInit(dir, 'review');
+  const gi1 = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(gi1.includes('.os-stronger/'), 'init 后应有规则');
+  assert.ok(gi1.includes('node_modules/'), '原有规则应保留');
+
+  runRestore(dir);
+  const gi2 = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(!gi2.includes('.os-stronger/'), 'restore 后应清除 os-stronger 规则');
+  assert.ok(!gi2.includes('os-stronger.bak'), 'restore 后应清除 bak 规则');
+  assert.ok(gi2.includes('node_modules/'), '原有规则应保留');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
 process.exit(FAIL > 0 ? 1 : 0);

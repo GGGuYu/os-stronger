@@ -1,28 +1,19 @@
 #!/usr/bin/env node
 // os-stronger CLI entry point
-const { init } = require('../src/init');
-
-// 动态加载增强列表(避免硬编码)
-let enhList = {};
-try {
-  enhList = {
-    'review': require('../src/enhancements/review'),
-    'skill-align': require('../src/enhancements/skill-align'),
-  };
-} catch (e) { /* 加载失败时 help 不列增强 */ }
+const { init, enhancements } = require('../src/init');
 
 const args = process.argv.slice(2);
 const cmd = args[0];
 
 if (cmd === 'init') {
   const restore = args.includes('--restore');
-  let enhancements = null;
+  let enhArg = null;
   const enhIdx = args.indexOf('--enhancements');
   if (enhIdx !== -1 && args[enhIdx + 1]) {
-    enhancements = args[enhIdx + 1].split(',').map(s => s.trim()).filter(Boolean);
+    enhArg = args[enhIdx + 1].split(',').map(s => s.trim()).filter(Boolean);
   }
   const dir = process.cwd();
-  init(dir, { restore, enhancements })
+  init(dir, { restore, enhancements: enhArg })
     .then(ok => process.exit(ok ? 0 : 1))
     .catch(e => {
       console.error('  \x1b[31m✗\x1b[0m ' + (e && e.message || e));
@@ -34,10 +25,13 @@ if (cmd === 'init') {
   console.log('  os-stronger init                                    # 交互式选择增强');
   console.log('  os-stronger init --enhancements review,skill-align  # 静默指定');
   console.log('  os-stronger init --restore                          # 撤销所有增强');
-  if (Object.keys(enhList).length > 0) {
+  const enhEntries = Object.entries(enhancements);
+  if (enhEntries.length > 0) {
     console.log('\nAvailable enhancements:');
-    for (const [id, enh] of Object.entries(enhList)) {
-      console.log('  ' + id.padEnd(14) + (enh.label || ''));
+    for (const [id, enh] of enhEntries) {
+      // label 自带 id 前缀(如 "review — ..."),去掉避免重复
+      const desc = enh.label ? enh.label.replace(/^.+?—\s*/, '') : '';
+      console.log('  ' + id.padEnd(14) + desc);
     }
   }
   process.exit(0);

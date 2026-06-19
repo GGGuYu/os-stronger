@@ -117,7 +117,15 @@ async function init(projectDir, options = {}) {
   }
   if (selectedIds.length === 0) { info('未选择任何增强,退出。'); return true; }
 
-  const activeEnhancements = selectedIds.map(id => enhancements[id]).filter(Boolean);
+  // 校验增强 id 有效(防 typo 静默吞掉)
+  const invalid = selectedIds.filter(id => !enhancements[id]);
+  if (invalid.length > 0) {
+    err('未知增强: ' + invalid.join(', '));
+    info('可用增强: ' + Object.keys(enhancements).join(', '));
+    return false;
+  }
+
+  const activeEnhancements = selectedIds.map(id => enhancements[id]);
   info(`启用增强: ${activeEnhancements.map(e => e.id).join(', ')}\n`);
 
   // 3. 逐个 patch
@@ -222,10 +230,21 @@ function doRestore(projectDir) {
     } catch (e) { /* skip */ }
   }
 
+  // 清理 .gitignore 里的 os-stronger 规则
+  const gitignorePath = path.join(projectDir, '.gitignore');
+  if (fs.existsSync(gitignorePath)) {
+    const lines = fs.readFileSync(gitignorePath, 'utf8').split('\n');
+    const cleaned = lines.filter(l => l !== '.os-stronger/' && l !== '*.os-stronger.bak');
+    if (cleaned.length !== lines.length) {
+      fs.writeFileSync(gitignorePath, cleaned.join('\n'), 'utf8');
+      ok('Cleaned .gitignore (removed os-stronger rules)');
+    }
+  }
+
   console.log();
   ok(`Restore complete. Restored ${restored} file(s).`);
   console.log();
   return true;
 }
 
-module.exports = { init };
+module.exports = { init, enhancements };
