@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+// os-stronger CLI entry point
+// Usage: os-stronger init [--restore]
+const { init } = require('../src/init');
+
+const args = process.argv.slice(2);
+const cmd = args[0];
+
+if (cmd === 'init') {
+  const restore = args.includes('--restore');
+  const dir = process.cwd();
+  const ok = init(dir, { restore });
+  process.exit(ok ? 0 : 1);
+} else {
+  console.log('os-stronger — OpenSpec enhancement layer');
+  console.log('');
+  console.log('Usage:');
+  console.log('  os-stronger init            Enhance OpenSpec in current project');
+  console.log('  os-stronger init --restore  Remove os-stronger enhancements');
+  process.exit(0);
+}
