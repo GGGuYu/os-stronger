@@ -38,6 +38,8 @@ os-stronger init --restore                          # 撤销所有增强
 
 跑完重启 IDE / 重载会话即可。
 
+> **注意**：`--restore` 会删除 `.os-stronger/` 目录（含 review 时写的 `requirement-summary.md`）。如需保留，先备份再 restore。
+
 ## 可用增强
 
 ### review — 全部 task 完成后起子 agent 审查
