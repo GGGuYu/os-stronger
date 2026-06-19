@@ -49,13 +49,20 @@ module.exports = {
       if (content.includes(PATCH_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      const pattern = /If `state: "all_done"`:\s*\w+,\s*suggest archive/;
-      if (!pattern.test(content)) {
-        const alt = /state:\s*"all_done".*?(?:congratulate|suggest archive)/i;
-        if (!alt.test(content)) return { patched: false, reason: 'pattern-not-found', content };
-        return { patched: true, content: content.replace(alt, REVIEW_WORKFLOW_BLOCK.trim()) };
+      // 分层降级匹配 all_done 注入点:
+      // L1: 精确匹配整句 "If state: all_done: congratulate, suggest archive"
+      // L2: 宽松匹配含 all_done 的行(到行尾)
+      // L3: 匹配 all_done 关键词所在行(最宽松,只认关键词)
+      const l1 = /If `state: "all_done"`:\s*\w+,\s*suggest archive/;
+      const l2 = /If `state: "all_done"`:[^\n]*/;
+      const l3 = /^.*all_done.*$/m;
+
+      let matched = null;
+      for (const p of [l1, l2, l3]) {
+        if (p.test(content)) { matched = p; break; }
       }
-      return { patched: true, content: content.replace(pattern, REVIEW_WORKFLOW_BLOCK.trim()) };
+      if (!matched) return { patched: false, reason: 'pattern-not-found', content };
+      return { patched: true, content: content.replace(matched, REVIEW_WORKFLOW_BLOCK.trim()) };
     },
     'openspec-propose': (content) => {
       if (content.includes(PROPOSE_MARKER)) {

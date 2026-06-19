@@ -51,39 +51,48 @@ module.exports = {
       if (content.includes(PROPOSE_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      // propose 的步骤4是 "Create artifacts in sequence" —— 在这之前插入 skill 对齐
-      // (对齐应在写文档前,但在确定 change name 之后)
-      const step4 = content.search(/4\.\s+\*\*Create artifacts in sequence/);
-      if (step4 === -1) {
-        // Fallback: 文件末尾追加
-        return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
+      // 分层降级:在"写文档前"插入 skill 对齐
+      // L1: 步骤4 "Create artifacts in sequence" 之前(精确)
+      // L2: **Steps** 之后第一个步骤之前(宽松,靠前但不影响功能)
+      // L3: 文件末尾追加(兜底)
+      const l1 = content.search(/4\.\s+\*\*Create artifacts in sequence/);
+      if (l1 !== -1) {
+        const insertAt = content.lastIndexOf('\n', l1);
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
       }
-      // 在步骤4的行首之前插入
-      const insertAt = content.lastIndexOf('\n', step4);
-      return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+      const stepsIdx = content.indexOf('**Steps**');
+      if (stepsIdx !== -1) {
+        // Steps 之后第一个换行后插入
+        const afterSteps = content.indexOf('\n', stepsIdx);
+        const insertAt = afterSteps !== -1 ? afterSteps + 1 : content.length;
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+      }
+      // L3: 末尾
+      return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
     },
     'openspec-apply-change': (content) => {
       if (content.includes(APPLY_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      // Insert after "Read context files" step — find the next numbered step
+      // 分层降级:在"读上下文文件后"插入 skill 约定提醒
+      // L1: "Read context files" 之后到下一个数字步骤之前
+      // L2: **Steps** 之后(宽松,靠前但 agent 读到时会注意到)
+      // L3: 文件末尾追加(兜底)
       const readContext = content.indexOf('Read context files');
-      if (readContext === -1) {
-        // Fallback: insert before "Show current progress"
-        const showProgress = content.indexOf('Show current progress');
-        if (showProgress === -1) {
-          return { patched: true, content: content.trimEnd() + '\n\n' + APPLY_BLOCK.trim() + '\n' };
-        }
-        const insertAt = content.lastIndexOf('\n', showProgress);
+      if (readContext !== -1) {
+        const afterRead = content.indexOf('\n', readContext);
+        const remainder = content.slice(afterRead);
+        const nextStepRel = remainder.search(/\n\d+\.\s/);
+        const insertAt = nextStepRel !== -1 ? afterRead + nextStepRel : content.length;
         return { patched: true, content: content.slice(0, insertAt) + '\n' + APPLY_BLOCK.trim() + content.slice(insertAt) };
       }
-      // Find the next numbered step after "Read context files"
-      const afterRead = content.indexOf('\n', readContext);
-      // search 不支持起始位置,用 slice + search
-      const remainder = content.slice(afterRead);
-      const nextStepRel = remainder.search(/\n\d+\.\s/);
-      const insertAt = nextStepRel !== -1 ? afterRead + nextStepRel : content.length;
-      return { patched: true, content: content.slice(0, insertAt) + '\n' + APPLY_BLOCK.trim() + content.slice(insertAt) };
+      const stepsIdx = content.indexOf('**Steps**');
+      if (stepsIdx !== -1) {
+        const afterSteps = content.indexOf('\n', stepsIdx);
+        const insertAt = afterSteps !== -1 ? afterSteps + 1 : content.length;
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + APPLY_BLOCK.trim() + content.slice(insertAt) };
+      }
+      return { patched: true, content: content.trimEnd() + '\n\n' + APPLY_BLOCK.trim() + '\n' };
     },
   },
 

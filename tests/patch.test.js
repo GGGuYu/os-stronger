@@ -65,7 +65,7 @@ test('review: patchApplyChange 幂等(再 patch 返回 already-patched)', () => 
 });
 
 test('review: patchApplyChange 找不到 pattern 返回 pattern-not-found', () => {
-  const result = reviewEnh.patches['openspec-apply-change']('no all_done here');
+  const result = reviewEnh.patches['openspec-apply-change']('no relevant keywords here at all');
   assert.strictEqual(result.patched, false);
   assert.strictEqual(result.reason, 'pattern-not-found');
 });
@@ -191,6 +191,50 @@ test('patcher: findOpenSpecSkills 跳过符号链接', () => {
   assert.ok(!found.some(s => s.toolDir === '.evil'), '不应扫描符号链接 .evil');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+// ─── 分层降级测试(OpenSpec 改格式时仍能注入) ───
+test('review: all_done 整句被改写仍匹配(L2 宽松匹配)', () => {
+  const modified = '   - If `state: "all_done"`: you are done!\n';
+  const result = reviewEnh.patches['openspec-apply-change'](modified);
+  assert.ok(result.patched, 'L2 应匹配含 all_done 的行');
+  assert.ok(result.content.includes('OS-STRONGER-REVIEW'));
+});
+
+test('review: all_done 只剩关键词仍匹配(L3 最宽松)', () => {
+  const modified = '   - When all_done is reached: stop\n';
+  const result = reviewEnh.patches['openspec-apply-change'](modified);
+  assert.ok(result.patched, 'L3 应匹配含 all_done 关键词的行');
+});
+
+test('review: 完全没有 all_done 返回 pattern-not-found', () => {
+  const result = reviewEnh.patches['openspec-apply-change']('nothing relevant here');
+  assert.strictEqual(result.patched, false);
+  assert.strictEqual(result.reason, 'pattern-not-found');
+});
+
+test('skill-align: propose 步骤4标题变了仍匹配(L2 Steps 之后)', () => {
+  const modified = PROPOSE_SAMPLE.replace('Create artifacts in sequence', 'Generate all artifacts now');
+  const result = skillAlignEnh.patches['openspec-propose'](modified);
+  assert.ok(result.patched, 'L2 应匹配 **Steps** 之后');
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
+  const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-PROPOSE');
+  const stepsPos = result.content.indexOf('**Steps**');
+  assert.ok(markerPos > stepsPos, '应在 Steps 之后');
+});
+
+test('skill-align: propose 完全没有 Steps 仍追加(L3 末尾)', () => {
+  const modified = 'Some random skill file without Steps section';
+  const result = skillAlignEnh.patches['openspec-propose'](modified);
+  assert.ok(result.patched, 'L3 应追加末尾');
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
+});
+
+test('skill-align: apply-change 没有 Read context files 仍注入(L2 Steps 之后)', () => {
+  const modified = '**Steps**\n\n1. Do something\n2. Do another thing\n';
+  const result = skillAlignEnh.patches['openspec-apply-change'](modified);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'));
 });
 
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
