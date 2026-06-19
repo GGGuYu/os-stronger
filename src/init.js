@@ -48,11 +48,12 @@ function init(projectDir, options = {}) {
   // 2. Patch openspec-apply-change
   info('Patching openspec-apply-change...');
   for (const skill of applySkills) {
-    const backupPath = patcher.backup(skill.skillFile);
     const content = fs.readFileSync(skill.skillFile, 'utf8');
     const result = patcher.patchApplyChange(content);
     
     if (result.patched) {
+      // 只在真正要写入时 backup(避免覆盖原始 backup)
+      const backupPath = patcher.backup(skill.skillFile);
       fs.writeFileSync(skill.skillFile, result.content, 'utf8');
       ok(`${skill.toolDir}/skills/${skill.skillName} — review workflow injected (backup: ${backupPath})`);
     } else {
@@ -63,11 +64,11 @@ function init(projectDir, options = {}) {
   // 3. Patch openspec-propose
   info('Patching openspec-propose...');
   for (const skill of proposeSkills) {
-    const backupPath = patcher.backup(skill.skillFile);
     const content = fs.readFileSync(skill.skillFile, 'utf8');
     const result = patcher.patchPropose(content);
     
     if (result.patched) {
+      const backupPath = patcher.backup(skill.skillFile);
       fs.writeFileSync(skill.skillFile, result.content, 'utf8');
       ok(`${skill.toolDir}/skills/${skill.skillName} — review reminder injected (backup: ${backupPath})`);
     } else {

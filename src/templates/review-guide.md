@@ -12,12 +12,14 @@
 
 ## 你要读的文件(全部自己读,主 agent 没有把内容塞给你)
 
-1. **`.todopro/requirement-summary.md`** —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
-2. **`openspec/changes/<name>/tasks.md`** —— 本次 OpenSpec 的 task 列表。了解主 agent 做了哪些步骤、是否都标记完成。
-3. **`openspec/changes/<name>/design.md`** —— 如有,了解设计意图。
+主 agent 会在启动你时给出具体文件路径。通常包括:
+
+1. **需求总结文件**(如 `.todopro/requirement-summary.md`) —— 主 agent 写的需求总结(这个 change 要达成什么)。这是你判断"符不符合需求"的依据。
+2. **tasks.md**(如 `openspec/changes/<change-name>/tasks.md`) —— 本次 OpenSpec 的 task 列表。了解主 agent 做了哪些步骤、是否都标记完成。
+3. **design.md**(如 `openspec/changes/<change-name>/design.md`) —— 如有,了解设计意图。
 4. **`git diff`** —— 相对基线的实际改动文本。
 
-读完这些你才有判断依据。**不要凭空猜测**没读到的内容。
+以主 agent 给你的路径为准。读完这些你才有判断依据。**不要凭空猜测**没读到的内容。
 
 ---
 
