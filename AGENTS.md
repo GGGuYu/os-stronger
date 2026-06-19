@@ -174,20 +174,34 @@ module.exports = {
 
 **否决的备选**:单独建 `.os-stronger/skills.md`。否决理由:apply-change 不会主动读这个文件,需要额外 patch 提醒,多一层间接。放 design.md 里 apply-change 天然读到。
 
+### 决策 7:patch 注入用分层降级策略
+
+**选择**:每个 patch 函数尝试 3 个锚点,从精确到宽松(L1→L2→L3),任一命中即注入。
+
+**为什么**:OpenSpec 可能改措辞(`congratulate`→`celebrate`)、改步骤号/标题(`Create artifacts`→`Generate artifacts`)、甚至大改结构。单一精确匹配太脆弱。分层降级保证:只要关键词还在(如 `all_done` / `**Steps**`),就能找到注入点。
+
+**降级表**:
+- review → apply-change: L1 整句 → L2 含 all_done 的行 → L3 all_done 关键词
+- review → propose: 末尾追加(天然通用,无降级需要)
+- skill-align → propose: L1 步骤4标题前 → L2 `**Steps**` 之后 → L3 末尾
+- skill-align → apply-change: L1 `Read context files` 之后 → L2 `**Steps**` 之后 → L3 末尾
+
+**红线**:不要去掉降级链。L1 失败必须尝试 L2,L2 失败必须尝试 L3。只有 L3 也失败(关键词完全不存在)才返回 `pattern-not-found`。
+
 ---
 
 ## 五、两个增强详解
 
 ### review 增强
 
-**patch 位置**:
-- `openspec-apply-change`: `state: "all_done"` 分支,替换 "congratulate, suggest archive" 为 review workflow
-- `openspec-propose`: Guardrails 段后追加 review 提醒
+**patch 位置**(分层降级):
+- `openspec-apply-change`: L1 整句 `all_done: congratulate, suggest archive` → L2 含 all_done 的行 → L3 all_done 关键词,替换为 review workflow
+- `openspec-propose`: 末尾追加 review 提醒
 
 **注入的 review workflow**(7 步):
 1. 检查 `.os-stronger/review-guide.md` 存在性(不读内容)
 2. 写需求总结到 `.os-stronger/requirement-summary.md`
-3. 起 review 子 agent(甩路径:review-guide + requirement-summary + tasks.md + git diff)
+3. 起 review 子 agent(甩路径:review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD)
 4. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出
 5. 主 agent 评估:是否属实?是否值得立即修?
 6. 属实且值得修 → 建 `Review N Fix - <desc>` task
@@ -201,9 +215,9 @@ module.exports = {
 
 ### skill-align 增强
 
-**patch 位置**:
-- `openspec-propose`: "Read context files" 步骤前插入 skill 对齐步骤
-- `openspec-apply-change`: "Read context files" 步骤后插入 skill 约定提醒
+**patch 位置**(分层降级):
+- `openspec-propose`: L1 步骤4 `Create artifacts` 之前 → L2 `**Steps**` 之后 → L3 末尾,插入 skill 对齐步骤
+- `openspec-apply-change`: L1 `Read context files` 之后 → L2 `**Steps**` 之后 → L3 末尾,插入 skill 约定提醒
 
 **注入的 skill 对齐流程**(propose 侧):
 1. 扫描项目可用 skills(`.*/skills/*/SKILL.md` 的 frontmatter)
@@ -233,25 +247,29 @@ module.exports = {
 ### 加新增强的步骤
 
 1. 新建 `src/enhancements/<name>/index.js`
-2. 导出 `{ id, label, patches, files, skillTemplate, markers }`
+2. 导出 `{ id, label, patches, files, skillTemplate }`
 3. 在 `src/init.js` 的 `enhancements` 对象里加一行: `'<name>': require('./enhancements/<name>')`
 4. 如有模板文件,放同目录
 5. 完成
 
 **红线**:不要为了加新增强去改 patcher.js 或 init.js 的核心逻辑。
 
-### patch 函数规范
+### patch 函数规范(分层降级)
 
 ```js
 patches: {
   'openspec-apply-change': (content) => {
     // 1. 检查已 patch(用 marker)
     if (content.includes(MARKER)) return { patched: false, reason: 'already-patched', content };
-    // 2. 找注入点(用正则匹配 OpenSpec 原文)
-    const pattern = /.../;
-    if (!pattern.test(content)) return { patched: false, reason: 'pattern-not-found', content };
-    // 3. 替换
-    return { patched: true, content: content.replace(pattern, INJECT_BLOCK.trim()) };
+    // 2. 分层降级匹配注入点(L1 精确 → L2 宽松 → L3 兜底)
+    const l1 = /精确匹配整句/;
+    const l2 = /宽松匹配关键词所在行/;
+    const l3 = /最宽松只认关键词/;
+    let matched = null;
+    for (const p of [l1, l2, l3]) { if (p.test(content)) { matched = p; break; } }
+    if (!matched) return { patched: false, reason: 'pattern-not-found', content };
+    // 3. 替换或插入
+    return { patched: true, content: content.replace(matched, INJECT_BLOCK.trim()) };
   },
 }
 ```
@@ -267,11 +285,11 @@ patches: {
 
 1. **纯提示词约束**:没有 hook,agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的,同样的机制,同样的可靠性。
 
-2. **patch 依赖文本匹配**:OpenSpec 大幅改写 skill 文本时 patch 可能失败。`os-stronger init` 会报告 `pattern-not-found`。缓解:每个 patch 函数有 fallback pattern。
+2. **patch 依赖文本匹配**:OpenSpec 大幅改写 skill 文本时 patch 可能失败。但分层降级策略(决策 7)保证:只要关键词还在(`all_done` / `**Steps**`),就能找到注入点。只有关键词完全消失才返回 `pattern-not-found`。
 
 3. **OpenSpec 更新覆盖 patch**:`openspec update` 会重新生成 skill 文件,覆盖我们的 patch。用户需重跑 `os-stronger init`。文档已说明。
 
-4. **无文件追踪**:review 子 agent 用 `git diff` 看改动。非 git 项目看不到。TodoPro 的 touched-files 功能这里没有(需要 hook)。
+4. **非 git 项目 review 覆盖有限**:review 子 agent 用 `git diff HEAD` 看改动。非 git 项目或改动已 commit 时 diff 可能为空,子 agent 需直接读 tasks.md 涉及的文件。注入文本已包含此兜底指导。
 
 5. **skill-align 扫描可能噪音大**:项目 skill 很多时,推荐列表可能过长。目前靠 agent 判断相关性,没有更智能的过滤。
 
@@ -291,7 +309,8 @@ patches: {
 | 加新增强 | ✅ | 新建 `enhancements/<name>/`,在 init.js 注册一行 |
 | 调注入文本措辞 | ✅ | 只改对应 `enhancements/<id>/index.js` |
 | 加新的 patch 注入点 | ✅ | 在增强的 patches 对象里加新 key |
-| 改 patch 正则匹配 | ✅(谨慎) | OpenSpec 更新文本时需要同步调整 |
+| 改 patch 正则匹配 | ✅(谨慎) | OpenSpec 更新文本时需要同步调整。遵循分层降级(决策 7) |
+| 去掉降级链只留精确匹配 | ❌ | 违背决策 7。OpenSpec 改措辞就断 |
 
 ---
 
