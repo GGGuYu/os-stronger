@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // os-stronger CLI entry point
-// Usage:
-//   os-stronger init                          # 交互式选择增强
-//   os-stronger init --enhancements review,skill-align  # 静默指定
-//   os-stronger init --restore                # 撤销所有增强
 const { init } = require('../src/init');
+
+// 动态加载增强列表(避免硬编码)
+let enhList = {};
+try {
+  enhList = {
+    'review': require('../src/enhancements/review'),
+    'skill-align': require('../src/enhancements/skill-align'),
+  };
+} catch (e) { /* 加载失败时 help 不列增强 */ }
 
 const args = process.argv.slice(2);
 const cmd = args[0];
@@ -17,15 +22,23 @@ if (cmd === 'init') {
     enhancements = args[enhIdx + 1].split(',').map(s => s.trim()).filter(Boolean);
   }
   const dir = process.cwd();
-  init(dir, { restore, enhancements }).then(ok => process.exit(ok ? 0 : 1));
+  init(dir, { restore, enhancements })
+    .then(ok => process.exit(ok ? 0 : 1))
+    .catch(e => {
+      console.error('  \x1b[31m✗\x1b[0m ' + (e && e.message || e));
+      process.exit(1);
+    });
 } else {
   console.log('os-stronger — OpenSpec enhancement layer\n');
   console.log('Usage:');
   console.log('  os-stronger init                                    # 交互式选择增强');
   console.log('  os-stronger init --enhancements review,skill-align  # 静默指定');
   console.log('  os-stronger init --restore                          # 撤销所有增强');
-  console.log('\nAvailable enhancements:');
-  console.log('  review       全部 task 完成后起子 agent 审查 (最多 2 轮)');
-  console.log('  skill-align  propose 时主动询问用户要用哪些 skill');
+  if (Object.keys(enhList).length > 0) {
+    console.log('\nAvailable enhancements:');
+    for (const [id, enh] of Object.entries(enhList)) {
+      console.log('  ' + id.padEnd(14) + (enh.label || ''));
+    }
+  }
   process.exit(0);
 }

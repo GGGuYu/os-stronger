@@ -67,7 +67,13 @@ module.exports = {
         const insertAt = afterSteps !== -1 ? afterSteps + 1 : content.length;
         return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
       }
-      // L3: 末尾
+      // L3: 插到第一个数字步骤之前(比纯末尾语义正确——"Before writing" 不该放最后)
+      const firstStep = content.search(/\n\d+\.\s/);
+      if (firstStep !== -1) {
+        const insertAt = firstStep; // \n 已含在匹配中,插到步骤行之前
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+      }
+      // 真的没有步骤,才末尾
       return { patched: true, content: content.trimEnd() + '\n\n' + PROPOSE_BLOCK.trim() + '\n' };
     },
     'openspec-apply-change': (content) => {

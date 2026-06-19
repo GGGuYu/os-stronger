@@ -1,5 +1,5 @@
 ---
-name: os-stronger
+name: os-stronger-review
 description: OpenSpec enhancement — adds independent subagent review before archiving. Automatically active after os-stronger init. When openspec-apply-change reports all tasks complete, a review workflow triggers: requirement summary → subagent review → fix tasks → archive. Max 2 review cycles. Do NOT manually invoke this skill; it activates automatically through the patched openspec-apply-change workflow.
 ---
 

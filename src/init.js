@@ -29,11 +29,11 @@ const ANSI = {
 function multiSelect(options) {
   return new Promise((resolve) => {
     const stdin = process.stdin;
-    if (!stdin.isTTY) return resolve(options.map(o => o.id));
+    // 非 TTY 由 init.js 调用前拦截报错,这里不处理
 
     let selected = options.map(() => true); // 默认全选
     let current = 0, renderCount = 0, lastRows = 0;
-    const BASE_ROWS = options.length + 3;
+    const BASE_ROWS = options.length + 2; // 1 行标题 + options.length 行选项 + 1 行 hint
 
     function render() {
       const rows = BASE_ROWS;
@@ -96,6 +96,11 @@ async function init(projectDir, options = {}) {
     err('OpenSpec not found. Run \x1b[36mopenspec init\x1b[0m first.');
     return false;
   }
+  // 校验 propose 是否存在(review 和 skill-align 都需要 patch 它)
+  const hasPropose = skills.some(s => s.skillName === 'openspec-propose');
+  if (!hasPropose) {
+    warn('openspec-propose not found. Some enhancements (review, skill-align) will be partially applied.');
+  }
   info(`Found OpenSpec in ${skills.length} skill files across ${new Set(skills.map(s => s.toolDir)).size} tool(s).\n`);
 
   // 2. 选增强
@@ -156,6 +161,18 @@ async function init(projectDir, options = {}) {
       fs.copyFileSync(templatePath, path.join(skillDir, 'SKILL.md'));
       ok(`Created ${toolDir}/skills/os-stronger-${enh.id}/SKILL.md`);
     }
+  }
+
+  // 6. 往 .gitignore 追加规则(幂等),防止 backup 和 .os-stronger/ 被提交
+  const gitignorePath = path.join(projectDir, '.gitignore');
+  const ignoreRules = ['.os-stronger/', '*.os-stronger.bak'];
+  let existing = '';
+  if (fs.existsSync(gitignorePath)) existing = fs.readFileSync(gitignorePath, 'utf8');
+  const toAdd = ignoreRules.filter(r => !existing.includes(r));
+  if (toAdd.length > 0) {
+    const addition = (existing && !existing.endsWith('\n') ? '\n' : '') + toAdd.join('\n') + '\n';
+    fs.appendFileSync(gitignorePath, addition, 'utf8');
+    ok(`Added ${toAdd.length} rule(s) to .gitignore`);
   }
 
   console.log();

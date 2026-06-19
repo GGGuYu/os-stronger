@@ -11,27 +11,34 @@ ${PATCH_MARKER}
      - If it does NOT exist: congratulate, suggest archive (unchanged behavior).
      - If it EXISTS:
        a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
-       b. **Determine review cycle**: Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). The current cycle is that N+1. If no completed review markers exist, this is Review 1. (If Review 1 Fix tasks still have \`[ ]\` items, you are still in Review 1 — do NOT advance to Review 2.)
-       c. **Launch review subagent**: Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
+       b. **Determine review cycle** (single source of truth for cycle number):
+          - Scan \`tasks.md\` for task lines matching \`Review N Fix -\`.
+          - Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
+          - If no completed review markers exist: \`currentCycle = 1\`.
+          - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
+          - **Circuit breaker**: If \`lastCompleted >= 2\` (Review 2 already fully completed): do NOT launch any subagent. Suggest archive immediately. The 2-cycle limit is hard.
+          - (If Review 1 Fix tasks still have \`[ ]\` items, \`lastCompleted\` = 0, so \`currentCycle\` = 1 — you are still in Review 1.)
+       c. **Launch review subagent** (only reached if currentCycle <= 2):
+          Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
           - \`.os-stronger/review-guide.md\` — review rules and output format
           - \`.os-stronger/requirement-summary.md\` — what to check against
           - \`openspec/changes/<name>/tasks.md\` — what was done
           - \`openspec/changes/<name>/design.md\` — design intent (if exists)
           - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
           - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
-          If this is Review 2, add: "This is the FINAL review cycle. Only flag CRITICAL issues that would break functionality."
+          If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality. After this, the change will be archived regardless."
        d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
           1. Is it actually TRUE? (use your knowledge of the codebase)
           2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
           Only create fix tasks for findings that are BOTH true AND worth immediate fix.
        e. **Create fix tasks**: In \`tasks.md\`, add new tasks for accepted findings:
           \`- [ ] Review N Fix - <brief description>\`
-          Where N is the current review cycle number.
+          Where N is \`currentCycle\`.
           Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
-       f. **Archive or continue**:
+       f. **Archive or continue** (uses same currentCycle from step b):
           - If NO findings were worth fixing: suggest archive immediately.
-          - If this is Review 2 (scan tasks.md for \`Review 2 Fix\` markers): this is the FINAL review cycle. Fix the Review 2 tasks, then suggest archive. Do NOT trigger Review 3.
-          - If this is Review 1: fix the Review 1 tasks, then when all complete, the review workflow will trigger again for Review 2.
+          - If \`currentCycle === 2\`: fix the Review 2 tasks, then when all complete, the circuit breaker in step b will fire — suggest archive. Do NOT manually trigger Review 3.
+          - If \`currentCycle === 1\`: fix the Review 1 tasks, then when all complete, the review workflow will trigger again for Review 2.
 ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `

@@ -9,6 +9,9 @@
     "bin",
     "src"
   ],
+  "scripts": {
+    "test": "node tests/patch.test.js && node tests/integration.test.js"
+  },
   "engines": {
     "node": ">=18"
   },

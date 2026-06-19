@@ -1,0 +1,192 @@
+// tests/integration.test.js
+// 集成测试:造假的 OpenSpec skill 文件,跑 init → 验证 patch + backup → restore → 验证还原。
+// 运行: node tests/integration.test.js
+
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
+
+let PASS = 0, FAIL = 0;
+function test(name, fn) {
+  try { fn(); console.log('  ✓ ' + name); PASS++; }
+  catch (e) { console.log('  ✗ ' + name + '\n    ' + e.message); FAIL++; }
+}
+
+const ROOT = path.resolve(__dirname, '..');
+const BIN = path.join(ROOT, 'bin', 'os-stronger');
+
+// 真实 OpenSpec skill 文本快照
+const APPLY_CHANGE = `---
+name: openspec-apply-change
+description: test
+---
+
+Implement tasks.
+
+**Steps**
+
+1. **Select the change**
+
+2. **Read context files**
+
+3. **Show current progress**
+
+   - If \`state: "all_done"\`: congratulate, suggest archive
+   - Otherwise: proceed to implementation
+
+**Guardrails**
+- Keep going
+`;
+
+const PROPOSE = `---
+name: openspec-propose
+description: test
+---
+
+Propose a change.
+
+**Steps**
+
+1. **If no clear input provided, ask what they want to build**
+
+2. **Create the change directory**
+
+3. **Get the artifact build order**
+
+4. **Create artifacts in sequence until apply-ready**
+
+5. **Show final status**
+
+**Guardrails**
+- Keep going
+`;
+
+// 造一个假项目,跑 init/restore
+function setupFakeProject() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-int-'));
+  // .claude/skills/openspec-apply-change/SKILL.md
+  fs.mkdirSync(path.join(dir, '.claude', 'skills', 'openspec-apply-change'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'), APPLY_CHANGE);
+  // .claude/skills/openspec-propose/SKILL.md
+  fs.mkdirSync(path.join(dir, '.claude', 'skills', 'openspec-propose'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'skills', 'openspec-propose', 'SKILL.md'), PROPOSE);
+  return dir;
+}
+
+function runInit(dir, enhancements) {
+  const flag = enhancements ? `--enhancements ${enhancements}` : '';
+  execSync(`node "${BIN}" init ${flag}`, { cwd: dir, stdio: 'pipe' });
+}
+
+function runRestore(dir) {
+  execSync(`node "${BIN}" init --restore`, { cwd: dir, stdio: 'pipe' });
+}
+
+console.log('os-stronger 集成测试\n');
+
+// ─── init + restore 完整流程 ───
+test('集成: init 两个增强 → patch 生效 → restore 完全还原', () => {
+  const dir = setupFakeProject();
+  const applyPath = path.join(dir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md');
+  const proposePath = path.join(dir, '.claude', 'skills', 'openspec-propose', 'SKILL.md');
+
+  // init
+  runInit(dir, 'review,skill-align');
+
+  // 验证 patch 生效
+  const patchedApply = fs.readFileSync(applyPath, 'utf8');
+  assert.ok(patchedApply.includes('OS-STRONGER-REVIEW'), 'apply-change 应含 review marker');
+  assert.ok(patchedApply.includes('OS-STRONGER-SKILL-ALIGN-APPLY'), 'apply-change 应含 skill-align marker');
+
+  const patchedPropose = fs.readFileSync(proposePath, 'utf8');
+  assert.ok(patchedPropose.includes('OS-STRONGER-REVIEW-PROPOSE'), 'propose 应含 review marker');
+  assert.ok(patchedPropose.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'), 'propose 应含 skill-align marker');
+
+  // 验证 backup 存在且是原始内容
+  const applyBak = fs.readFileSync(applyPath + '.os-stronger.bak', 'utf8');
+  assert.strictEqual(applyBak, APPLY_CHANGE, 'backup 应是原始内容(决策 3:只 backup 一次)');
+
+  // 验证支撑文件
+  assert.ok(fs.existsSync(path.join(dir, '.os-stronger', 'review-guide.md')), '应创建 review-guide.md');
+
+  // 验证 skill 目录
+  assert.ok(fs.existsSync(path.join(dir, '.claude', 'skills', 'os-stronger-review', 'SKILL.md')), '应创建 os-stronger-review skill');
+
+  // restore
+  runRestore(dir);
+
+  // 验证完全还原
+  const restoredApply = fs.readFileSync(applyPath, 'utf8');
+  assert.strictEqual(restoredApply, APPLY_CHANGE, 'apply-change 应完全还原');
+  assert.ok(!restoredApply.includes('OS-STRONGER'), 'apply-change 不应有 marker 残留');
+
+  const restoredPropose = fs.readFileSync(proposePath, 'utf8');
+  assert.strictEqual(restoredPropose, PROPOSE, 'propose 应完全还原');
+  assert.ok(!restoredPropose.includes('OS-STRONGER'), 'propose 不应有 marker 残留');
+
+  // 验证清理
+  assert.ok(!fs.existsSync(path.join(dir, '.os-stronger')), '.os-stronger/ 应删除');
+  assert.ok(!fs.existsSync(path.join(dir, '.claude', 'skills', 'os-stronger-review')), 'os-stronger-review/ 应删除');
+  assert.ok(!fs.existsSync(applyPath + '.os-stronger.bak'), 'backup 应删除');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ─── 幂等: init 两次不重复注入 ───
+test('集成: init 两次幂等(不重复注入,backup 不覆盖)', () => {
+  const dir = setupFakeProject();
+  const applyPath = path.join(dir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md');
+
+  runInit(dir, 'review,skill-align');
+  const after1 = fs.readFileSync(applyPath, 'utf8');
+
+  // 第二次 init
+  runInit(dir, 'review,skill-align');
+  const after2 = fs.readFileSync(applyPath, 'utf8');
+
+  assert.strictEqual(after1, after2, '二次 init 后内容应一致(幂等)');
+
+  // backup 仍是原始内容
+  const bak = fs.readFileSync(applyPath + '.os-stronger.bak', 'utf8');
+  assert.strictEqual(bak, APPLY_CHANGE, 'backup 应保持原始(决策 3)');
+
+  runRestore(dir);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ─── .gitignore 追加 ───
+test('集成: init 往 .gitignore 追加规则(幂等)', () => {
+  const dir = setupFakeProject();
+  runInit(dir, 'review');
+
+  const gi = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(gi.includes('.os-stronger/'), '.gitignore 应含 .os-stronger/');
+  assert.ok(gi.includes('*.os-stronger.bak'), '.gitignore 应含 *.os-stronger.bak');
+
+  // 二次 init 不重复追加
+  runInit(dir, 'review');
+  const gi2 = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  const count = (gi2.match(/\.os-stronger\//g) || []).length;
+  assert.strictEqual(count, 1, '不应重复追加');
+
+  runRestore(dir);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ─── 无 OpenSpec 时报错 ───
+test('集成: 无 OpenSpec 时 init 报错退出', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-empty-'));
+  let exitCode = 0;
+  try {
+    execSync(`node "${BIN}" init --enhancements review`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) {
+    exitCode = e.status;
+  }
+  assert.ok(exitCode !== 0, '应非 0 退出');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
+process.exit(FAIL > 0 ? 1 : 0);
