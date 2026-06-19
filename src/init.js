@@ -128,12 +128,17 @@ function doRestore(projectDir) {
     ok(`Removed ${REVIEW_GUIDE_PATH}`);
   }
 
-  // Remove os-stronger skill dirs
-  for (const toolDir of patcher.TOOL_SKILLS_DIRS) {
-    const skillDir = path.join(projectDir, toolDir, 'skills', 'os-stronger');
+  // Remove os-stronger skill dirs (scan dot-directories, same as findOpenSpecSkills)
+  let rootEntries;
+  try { rootEntries = fs.readdirSync(projectDir, { withFileTypes: true }); }
+  catch (e) { rootEntries = []; }
+  for (const entry of rootEntries) {
+    if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
+    if (entry.name === '.git' || entry.name === '.os-stronger') continue;
+    const skillDir = path.join(projectDir, entry.name, 'skills', 'os-stronger');
     if (fs.existsSync(skillDir)) {
       fs.rmSync(skillDir, { recursive: true, force: true });
-      ok(`Removed ${toolDir}/skills/os-stronger/`);
+      ok(`Removed ${entry.name}/skills/os-stronger/`);
     }
   }
 

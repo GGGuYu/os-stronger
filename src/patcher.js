@@ -12,16 +12,6 @@ const PROPOSE_MARKER = '<!-- OS-STRONGER-PROPOSE -->';
 // ─── Constants for OpenSpec skill mapping ───
 const OPENSEC_SKILLS = ['openspec-apply-change', 'openspec-propose'];
 
-// ─── Tool directories to scan (from OpenSpec's AI_TOOLS config) ───
-const TOOL_SKILLS_DIRS = [
-  '.claude', '.codex', '.cursor', '.gemini', '.github',
-  '.windsurf', '.continue', '.amazonq', '.agent', '.augment',
-  '.bob', '.cline', '.forge', '.codebuddy', '.cospec', '.crush',
-  '.factory', '.iflow', '.junie', '.kilocode', '.kimi', '.kiro',
-  '.lingma', '.vibe', '.opencode', '.pi', '.qoder', '.qwen',
-  '.roo', '.trae',
-];
-
 // ─── Review workflow injection text for openspec-apply-change ───
 
 const REVIEW_WORKFLOW_BLOCK = `
@@ -139,21 +129,37 @@ function restore(filePath) {
 
 /**
  * Scan a project directory for all OpenSpec skill installations.
- * Returns array of { toolDir, skillPath } for each openspec-apply-change found.
+ * Strategy: scan project root for dot-directories (.claude, .codex, .cursor, ...),
+ * check each one's skills/ subdirectory for openspec-* folders.
+ * This auto-discovers new tools without maintaining a hardcoded list.
+ * Returns array of { toolDir, skillName, skillFile }.
  */
 function findOpenSpecSkills(projectDir) {
   const found = [];
-  for (const toolDir of TOOL_SKILLS_DIRS) {
-    const skillsDir = path.join(projectDir, toolDir, 'skills');
+  let rootEntries;
+  try {
+    rootEntries = fs.readdirSync(projectDir, { withFileTypes: true });
+  } catch (e) {
+    return found;
+  }
+
+  for (const entry of rootEntries) {
+    // Only scan dot-directories (.claude, .codex, .cursor, .github, etc.)
+    // OpenSpec installs skills into these tool-specific dirs.
+    if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
+    // Skip common non-tool dot-dirs to avoid wasted scanning
+    if (entry.name === '.git' || entry.name === '.os-stronger') continue;
+
+    const skillsDir = path.join(projectDir, entry.name, 'skills');
     if (!fs.existsSync(skillsDir)) continue;
+
     try {
-      const entries = fs.readdirSync(skillsDir);
-      for (const entry of entries) {
-        if (!entry.startsWith('openspec-')) continue;
-        const skillDir = path.join(skillsDir, entry);
-        const skillFile = path.join(skillDir, 'SKILL.md');
+      const skillEntries = fs.readdirSync(skillsDir, { withFileTypes: true });
+      for (const skillEntry of skillEntries) {
+        if (!skillEntry.name.startsWith('openspec-')) continue;
+        const skillFile = path.join(skillsDir, skillEntry.name, 'SKILL.md');
         if (fs.existsSync(skillFile)) {
-          found.push({ toolDir, skillName: entry, skillFile });
+          found.push({ toolDir: entry.name, skillName: skillEntry.name, skillFile });
         }
       }
     } catch (e) {
@@ -172,5 +178,4 @@ module.exports = {
   PATCH_MARKER,
   PROPOSE_MARKER,
   OPENSEC_SKILLS,
-  TOOL_SKILLS_DIRS,
 };
