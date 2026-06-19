@@ -79,8 +79,10 @@ module.exports = {
       }
       // Find the next numbered step after "Read context files"
       const afterRead = content.indexOf('\n', readContext);
-      const nextStep = content.search(/\n\d+\.\s/, afterRead);
-      const insertAt = nextStep !== -1 ? nextStep : content.length;
+      // search 不支持起始位置,用 slice + search
+      const remainder = content.slice(afterRead);
+      const nextStepRel = remainder.search(/\n\d+\.\s/);
+      const insertAt = nextStepRel !== -1 ? afterRead + nextStepRel : content.length;
       return { patched: true, content: content.slice(0, insertAt) + '\n' + APPLY_BLOCK.trim() + content.slice(insertAt) };
     },
   },

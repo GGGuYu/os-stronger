@@ -17,7 +17,7 @@ function test(name, fn) {
   catch (e) { console.log('  ✗ ' + name + '\n    ' + e.message); FAIL++; }
 }
 
-// 真实 OpenSpec apply-change SKILL.md 片段(含 all_done 行)
+// 真实 OpenSpec apply-change SKILL.md 片段(含 all_done 行 + Read context files + 下一步)
 const APPLY_CHANGE_SAMPLE = `4. **Read context files**
 
    Read every file path listed under contextFiles.
@@ -112,6 +112,17 @@ test('skill-align: patchApplyChange 注入 skill 约定提醒', () => {
   assert.ok(result.patched);
   assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'));
   assert.ok(result.content.includes('Skill Alignment'), '应含 Skill Alignment 检查');
+});
+
+test('skill-align: patchApplyChange 注入到 Read context files 之后', () => {
+  const result = skillAlignEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'));
+  const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-APPLY');
+  const readContextPos = result.content.indexOf('Read context files');
+  const showProgressPos = result.content.indexOf('5. **Show current progress');
+  assert.ok(markerPos > readContextPos, '应在 Read context files 之后');
+  assert.ok(markerPos < showProgressPos, '应在步骤5之前');
 });
 
 test('skill-align: patchApplyChange 幂等', () => {
