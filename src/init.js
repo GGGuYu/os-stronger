@@ -1,108 +1,163 @@
 // os-stronger/src/init.js
-// Main init logic: scan for OpenSpec skills, patch them, create supporting files.
+// 主流程:多选增强 → 扫描 OpenSpec skills → 逐个 patch → 创建支撑文件。
 
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 const patcher = require('./patcher');
 
-// ─── CLI output helpers ───
-function ok(msg)  { console.log('  \x1b[32m✓\x1b[0m ' + msg); }
+// 加载所有增强模块
+const enhancements = {
+  'review':      require('./enhancements/review'),
+  'skill-align': require('./enhancements/skill-align'),
+};
+
+// ─── CLI 输出 ───
+function ok(msg)   { console.log('  \x1b[32m✓\x1b[0m ' + msg); }
 function warn(msg) { console.log('  \x1b[33m!\x1b[0m ' + msg); }
-function err(msg) { console.error('  \x1b[31m✗\x1b[0m ' + msg); }
+function err(msg)  { console.error('  \x1b[31m✗\x1b[0m ' + msg); }
 function info(msg) { console.log('  ' + msg); }
 
-// ─── Globals ───
-const REVIEW_GUIDE_PATH = '.os-stronger/review-guide.md';
+const ANSI = {
+  cyan: '\x1b[36m', green: '\x1b[32m', yellow: '\x1b[33m',
+  dim: '\x1b[2m', reset: '\x1b[0m',
+  cursorUp: (n) => `\x1b[${n}A`, cursorShow: '\x1b[?25h', cursorHide: '\x1b[?25l',
+  clearLine: '\x1b[K',
+};
 
-/**
- * Main init function.
- * @param {string} projectDir - project root directory
- * @param {{ restore?: boolean }} options
- */
-function init(projectDir, options = {}) {
+// ─── 交互式多选 ───
+function multiSelect(options) {
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    if (!stdin.isTTY) return resolve(options.map(o => o.id));
+
+    let selected = options.map(() => true); // 默认全选
+    let current = 0, renderCount = 0, lastRows = 0;
+    const BASE_ROWS = options.length + 3;
+
+    function render() {
+      const rows = BASE_ROWS;
+      if (renderCount > 0) {
+        process.stdout.write(ANSI.cursorUp(lastRows - 1) + '\r');
+      }
+      let out = `  \x1b[2m?\x1b[0m 选择要启用的增强 (\x1b[2m↑/↓\x1b[0m 导航, \x1b[2m空格\x1b[0m 切换, \x1b[2m回车\x1b[0m 确认):\n`;
+      for (let i = 0; i < options.length; i++) {
+        const checkbox = selected[i] ? `${ANSI.green}◼${ANSI.reset}` : '◻';
+        const pointer = i === current ? `${ANSI.cyan}❯${ANSI.reset}` : ' ';
+        const style = i === current ? ANSI.cyan : '';
+        out += `  ${pointer} ${checkbox} ${style}${options[i].label}${ANSI.reset}${ANSI.clearLine}\n`;
+      }
+      out += `  ${ANSI.dim}(空格切换, 回车确认, a 全选/取消)${ANSI.reset}${ANSI.clearLine}`;
+      process.stdout.write(out);
+      lastRows = rows;
+      renderCount++;
+    }
+
+    function cleanup() {
+      stdin.setRawMode(false); stdin.pause();
+      stdin.removeListener('keypress', onKeypress);
+      process.stdout.write(ANSI.cursorShow);
+    }
+    function onKeypress(str, key) {
+      if (key.name === 'up')   { current = (current - 1 + options.length) % options.length; render(); }
+      else if (key.name === 'down') { current = (current + 1) % options.length; render(); }
+      else if (key.name === 'space') { selected[current] = !selected[current]; render(); }
+      else if (key.name === 'return' || key.name === 'enter') {
+        cleanup();
+        resolve(options.filter((_, i) => selected[i]).map(o => o.id));
+      }
+      else if (key.name === 'c' && key.ctrl) { cleanup(); process.exit(0); }
+      else if (str === 'a') {
+        const all = selected.every(s => s);
+        selected = selected.map(() => !all); render();
+      }
+    }
+
+    readline.emitKeypressEvents(stdin);
+    stdin.setRawMode(true);
+    process.stdout.write(ANSI.cursorHide);
+    render();
+    stdin.on('keypress', onKeypress);
+  });
+}
+
+// ─── 主流程 ───
+async function init(projectDir, options = {}) {
   projectDir = path.resolve(projectDir || process.cwd());
 
-  // ─── Restore mode ───
-  if (options.restore) {
-    return doRestore(projectDir);
-  }
+  if (options.restore) return doRestore(projectDir);
 
   console.log('\n  os-stronger init\n');
   info('Project: ' + projectDir);
 
-  // 1. Find all OpenSpec skill installations
+  // 1. 找 OpenSpec
   const skills = patcher.findOpenSpecSkills(projectDir);
-  
-  const applySkills = skills.filter(s => s.skillName === 'openspec-apply-change');
-  const proposeSkills = skills.filter(s => s.skillName === 'openspec-propose');
-
-  if (applySkills.length === 0) {
-    err('OpenSpec not found in this project.');
-    info('Run \x1b[36mopenspec init\x1b[0m first, then re-run os-stronger init.');
+  if (!skills.some(s => s.skillName === 'openspec-apply-change')) {
+    err('OpenSpec not found. Run \x1b[36mopenspec init\x1b[0m first.');
     return false;
   }
+  info(`Found OpenSpec in ${skills.length} skill files across ${new Set(skills.map(s => s.toolDir)).size} tool(s).\n`);
 
-  info(`Found OpenSpec in ${skills.length} skill files across ${new Set(skills.map(s => s.toolDir)).size} tool(s).`);
-  console.log();
+  // 2. 选增强
+  let selectedIds;
+  if (options.enhancements) {
+    selectedIds = options.enhancements;
+  } else {
+    const opts = Object.values(enhancements).map(e => ({ id: e.id, label: e.label }));
+    selectedIds = await multiSelect(opts);
+  }
+  if (selectedIds.length === 0) { info('未选择任何增强,退出。'); return true; }
 
-  // 2. Patch openspec-apply-change
-  info('Patching openspec-apply-change...');
-  for (const skill of applySkills) {
-    const content = fs.readFileSync(skill.skillFile, 'utf8');
-    const result = patcher.patchApplyChange(content);
-    
-    if (result.patched) {
-      // 只在真正要写入时 backup(避免覆盖原始 backup)
-      const backupPath = patcher.backup(skill.skillFile);
-      fs.writeFileSync(skill.skillFile, result.content, 'utf8');
-      ok(`${skill.toolDir}/skills/${skill.skillName} — review workflow injected (backup: ${backupPath})`);
-    } else {
-      ok(`${skill.toolDir}/skills/${skill.skillName} — ${result.reason}, skipped`);
+  const activeEnhancements = selectedIds.map(id => enhancements[id]).filter(Boolean);
+  info(`启用增强: ${activeEnhancements.map(e => e.id).join(', ')}\n`);
+
+  // 3. 逐个 patch
+  for (const enh of activeEnhancements) {
+    info(`[${enh.id}] Patching...`);
+    for (const [skillName, patchFn] of Object.entries(enh.patches)) {
+      const matching = skills.filter(s => s.skillName === skillName);
+      for (const skill of matching) {
+        const content = fs.readFileSync(skill.skillFile, 'utf8');
+        const result = patchFn(content);
+        if (result.patched) {
+          patcher.backup(skill.skillFile);
+          fs.writeFileSync(skill.skillFile, result.content, 'utf8');
+          ok(`${skill.toolDir}/skills/${skillName} — patched`);
+        } else {
+          ok(`${skill.toolDir}/skills/${skillName} — ${result.reason}`);
+        }
+      }
     }
   }
 
-  // 3. Patch openspec-propose
-  info('Patching openspec-propose...');
-  for (const skill of proposeSkills) {
-    const content = fs.readFileSync(skill.skillFile, 'utf8');
-    const result = patcher.patchPropose(content);
-    
-    if (result.patched) {
-      const backupPath = patcher.backup(skill.skillFile);
-      fs.writeFileSync(skill.skillFile, result.content, 'utf8');
-      ok(`${skill.toolDir}/skills/${skill.skillName} — review reminder injected (backup: ${backupPath})`);
-    } else {
-      ok(`${skill.toolDir}/skills/${skill.skillName} — ${result.reason}, skipped`);
+  // 4. 创建支撑文件
+  for (const enh of activeEnhancements) {
+    for (const file of enh.files) {
+      const destPath = path.join(projectDir, file.dest);
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      const templatePath = path.join(__dirname, 'enhancements', enh.id, file.template);
+      fs.copyFileSync(templatePath, destPath);
+      ok(`Created ${file.dest}`);
     }
   }
 
-  // 4. Create .os-stronger/review-guide.md
-  const reviewGuidePath = path.join(projectDir, REVIEW_GUIDE_PATH);
-  const reviewGuideDir = path.dirname(reviewGuidePath);
-  fs.mkdirSync(reviewGuideDir, { recursive: true });
-  
-  const templatePath = path.join(__dirname, 'templates', 'review-guide.md');
-  const reviewGuideContent = fs.readFileSync(templatePath, 'utf8');
-  fs.writeFileSync(reviewGuidePath, reviewGuideContent, 'utf8');
-  ok(`Created ${REVIEW_GUIDE_PATH}`);
-
-  // 5. Create os-stronger SKILL.md for each tool
-  const skillTemplatePath = path.join(__dirname, 'templates', 'skill.md');
-  const skillTemplateContent = fs.readFileSync(skillTemplatePath, 'utf8');
-  
-  for (const toolDir of new Set(applySkills.map(s => s.toolDir))) {
-    const skillDir = path.join(projectDir, toolDir, 'skills', 'os-stronger');
-    fs.mkdirSync(skillDir, { recursive: true });
-    const skillFile = path.join(skillDir, 'SKILL.md');
-    fs.writeFileSync(skillFile, skillTemplateContent, 'utf8');
-    ok(`Created ${toolDir}/skills/os-stronger/SKILL.md`);
+  // 5. 创建 skill 说明文件 (每个增强一个 skill,每个工具目录各一份)
+  const toolDirs = [...new Set(skills.map(s => s.toolDir))];
+  for (const enh of activeEnhancements) {
+    if (!enh.skillTemplate) continue;
+    const templatePath = path.join(__dirname, 'enhancements', enh.id, enh.skillTemplate);
+    for (const toolDir of toolDirs) {
+      const skillDir = path.join(projectDir, toolDir, 'skills', `os-stronger-${enh.id}`);
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.copyFileSync(templatePath, path.join(skillDir, 'SKILL.md'));
+      ok(`Created ${toolDir}/skills/os-stronger-${enh.id}/SKILL.md`);
+    }
   }
 
   console.log();
   ok('os-stronger init complete.');
-  info('The review workflow will trigger automatically when openspec-apply-change reaches all_done.');
-  info('To remove: run \x1b[36mos-stronger init --restore\x1b[0m');
   info('If OpenSpec updates: re-run \x1b[36mos-stronger init\x1b[0m to re-apply patches.');
+  info('To remove: run \x1b[36mos-stronger init --restore\x1b[0m');
   console.log();
   return true;
 }
@@ -113,7 +168,6 @@ function doRestore(projectDir) {
 
   const skills = patcher.findOpenSpecSkills(projectDir);
   let restored = 0;
-
   for (const skill of skills) {
     if (patcher.restore(skill.skillFile)) {
       ok(`Restored ${skill.toolDir}/skills/${skill.skillName}/SKILL.md`);
@@ -121,25 +175,30 @@ function doRestore(projectDir) {
     }
   }
 
-  // Remove review-guide.md
-  const reviewGuidePath = path.join(projectDir, REVIEW_GUIDE_PATH);
-  if (fs.existsSync(reviewGuidePath)) {
-    fs.unlinkSync(reviewGuidePath);
-    ok(`Removed ${REVIEW_GUIDE_PATH}`);
+  // 删 .os-stronger/
+  const osStrongerDir = path.join(projectDir, '.os-stronger');
+  if (fs.existsSync(osStrongerDir)) {
+    fs.rmSync(osStrongerDir, { recursive: true, force: true });
+    ok('Removed .os-stronger/');
   }
 
-  // Remove os-stronger skill dirs (scan dot-directories, same as findOpenSpecSkills)
+  // 删各工具下的 os-stronger-* skill 目录
   let rootEntries;
   try { rootEntries = fs.readdirSync(projectDir, { withFileTypes: true }); }
   catch (e) { rootEntries = []; }
   for (const entry of rootEntries) {
     if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
-    if (entry.name === '.git' || entry.name === '.os-stronger') continue;
-    const skillDir = path.join(projectDir, entry.name, 'skills', 'os-stronger');
-    if (fs.existsSync(skillDir)) {
-      fs.rmSync(skillDir, { recursive: true, force: true });
-      ok(`Removed ${entry.name}/skills/os-stronger/`);
-    }
+    if (entry.name === '.git') continue;
+    const skillsDir = path.join(projectDir, entry.name, 'skills');
+    if (!fs.existsSync(skillsDir)) continue;
+    try {
+      for (const sub of fs.readdirSync(skillsDir)) {
+        if (sub.startsWith('os-stronger-')) {
+          fs.rmSync(path.join(skillsDir, sub), { recursive: true, force: true });
+          ok(`Removed ${entry.name}/skills/${sub}/`);
+        }
+      }
+    } catch (e) { /* skip */ }
   }
 
   console.log();

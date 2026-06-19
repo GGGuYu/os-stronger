@@ -1,122 +1,48 @@
 // os-stronger/src/patcher.js
-// OpenSpec skill file patching — injects review workflow into openspec-apply-change
-// and review reminder into openspec-propose.
+// 通用 patch 工具:扫描、备份、恢复。不含任何增强特定逻辑。
 
 const fs = require('fs');
 const path = require('path');
 
-// ─── Markers for detecting existing patches ───
-const PATCH_MARKER = '<!-- OS-STRONGER-REVIEW -->';
-const PROPOSE_MARKER = '<!-- OS-STRONGER-PROPOSE -->';
-
-// ─── Constants for OpenSpec skill mapping ───
-const OPENSEC_SKILLS = ['openspec-apply-change', 'openspec-propose'];
-
-// ─── Review workflow injection text for openspec-apply-change ───
-
-const REVIEW_WORKFLOW_BLOCK = `
-${PATCH_MARKER}
-   - If \`state: "all_done"\`:
-     - Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you).
-     - If it does NOT exist: congratulate, suggest archive (unchanged behavior).
-     - If it EXISTS:
-       a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
-       b. **Determine review cycle**: Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). The current cycle is that N+1. If no completed review markers exist, this is Review 1. (If Review 1 Fix tasks still have \`[ ]\` items, you are still in Review 1 — do NOT advance to Review 2.)
-       c. **Launch review subagent**: Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
-          - \`.os-stronger/review-guide.md\` — review rules and output format
-          - \`.os-stronger/requirement-summary.md\` — what to check against
-          - \`openspec/changes/<name>/tasks.md\` — what was done
-          - \`git diff\` — what actually changed
-          If this is Review 2, add: "This is the FINAL review cycle. Only flag CRITICAL issues that would break functionality."
-       d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
-          1. Is it actually TRUE? (use your knowledge of the codebase)
-          2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
-          Only create fix tasks for findings that are BOTH true AND worth immediate fix.
-       e. **Create fix tasks**: In \`tasks.md\`, add new tasks for accepted findings:
-          \`- [ ] Review N Fix - <brief description>\`
-          Where N is the current review cycle number.
-          Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
-       f. **Archive or continue**:
-          - If NO findings were worth fixing: suggest archive immediately.
-          - If this is Review 2 (scan tasks.md for \`Review 2 Fix\` markers): this is the FINAL review cycle. Fix the Review 2 tasks, then suggest archive. Do NOT trigger Review 3.
-          - If this is Review 1: fix the Review 1 tasks, then when all complete, the review workflow will trigger again for Review 2.
-${PATCH_MARKER}`;
-
-// ─── Propose injection text ───
-
-const PROPOSE_BLOCK = `
-${PROPOSE_MARKER}
-**os-stronger review reminder**: If this project has os-stronger enabled (check if \`.os-stronger/review-guide.md\` exists), consider adding a final note in the generated tasks.md: "After all tasks complete, the review workflow in openspec-apply-change will trigger automatically — no manual action needed."
-${PROPOSE_MARKER}`;
-
-// ─── Patch functions ───
-
 /**
- * Patch openspec-apply-change SKILL.md: replace the "all_done" branch
- * with the review workflow block.
+ * 扫描项目根下所有 .开头目录的 skills/,找 openspec-* skill。
+ * 返回 [{ toolDir, skillName, skillFile }]
  */
-function patchApplyChange(content) {
-  // Check if already patched
-  if (content.includes(PATCH_MARKER)) {
-    return { patched: false, reason: 'already-patched', content };
-  }
+function findOpenSpecSkills(projectDir) {
+  const found = [];
+  let rootEntries;
+  try { rootEntries = fs.readdirSync(projectDir, { withFileTypes: true }); }
+  catch (e) { return found; }
 
-  // Find the "all_done" line and replace the surrounding text
-  // OpenSpec's text: `If state: "all_done": congratulate, suggest archive`
-  const allDonePattern = /If `state: "all_done"`:\s*\w+,\s*suggest archive/;
-  
-  if (!allDonePattern.test(content)) {
-    // Try alternative pattern (OpenSpec may have changed the text)
-    const altPattern = /state:\s*"all_done".*?(?:congratulate|suggest archive)/i;
-    if (!altPattern.test(content)) {
-      return { patched: false, reason: 'pattern-not-found', content };
-    }
-    // Replace using the alternative pattern
-    const newContent = content.replace(altPattern, REVIEW_WORKFLOW_BLOCK.trim());
-    return { patched: true, reason: 'patched-alt', content: newContent };
-  }
+  for (const entry of rootEntries) {
+    if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
+    if (entry.name === '.git' || entry.name === '.os-stronger') continue;
 
-  const newContent = content.replace(allDonePattern, REVIEW_WORKFLOW_BLOCK.trim());
-  return { patched: true, reason: 'patched', content: newContent };
+    const skillsDir = path.join(projectDir, entry.name, 'skills');
+    if (!fs.existsSync(skillsDir)) continue;
+
+    try {
+      for (const skillEntry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+        if (!skillEntry.name.startsWith('openspec-')) continue;
+        const skillFile = path.join(skillsDir, skillEntry.name, 'SKILL.md');
+        if (fs.existsSync(skillFile)) {
+          found.push({ toolDir: entry.name, skillName: skillEntry.name, skillFile });
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+  return found;
 }
 
-/**
- * Patch openspec-propose SKILL.md: add a note about os-stronger review.
- */
-function patchPropose(content) {
-  if (content.includes(PROPOSE_MARKER)) {
-    return { patched: false, reason: 'already-patched', content };
-  }
-
-  // Find the end of the Guardrails section (last section before EOF)
-  const guardrailsSection = content.lastIndexOf('**Guardrails**');
-  if (guardrailsSection === -1) {
-    // Try to append at the very end of the file
-    const trimmed = content.trimEnd();
-    const newContent = trimmed + '\n\n' + PROPOSE_BLOCK.trim() + '\n';
-    return { patched: true, reason: 'patched-end', content: newContent };
-  }
-
-  // Find the end of the Guardrails section (next "---" or EOF)
-  const afterGuardrails = content.indexOf('\n---', guardrailsSection);
-  const insertAt = afterGuardrails !== -1 ? afterGuardrails : content.length;
-  
-  const newContent = content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt);
-  return { patched: true, reason: 'patched-guardrails', content: newContent };
-}
-
-/**
- * Create a backup of a file before patching.
- */
 function backup(filePath) {
   const backupPath = filePath + '.os-stronger.bak';
-  fs.copyFileSync(filePath, backupPath);
+  // 只在不存在时 backup,避免多增强 patch 同一文件时覆盖原始 backup
+  if (!fs.existsSync(backupPath)) {
+    fs.copyFileSync(filePath, backupPath);
+  }
   return backupPath;
 }
 
-/**
- * Restore from backup.
- */
 function restore(filePath) {
   const backupPath = filePath + '.os-stronger.bak';
   if (fs.existsSync(backupPath)) {
@@ -127,55 +53,4 @@ function restore(filePath) {
   return false;
 }
 
-/**
- * Scan a project directory for all OpenSpec skill installations.
- * Strategy: scan project root for dot-directories (.claude, .codex, .cursor, ...),
- * check each one's skills/ subdirectory for openspec-* folders.
- * This auto-discovers new tools without maintaining a hardcoded list.
- * Returns array of { toolDir, skillName, skillFile }.
- */
-function findOpenSpecSkills(projectDir) {
-  const found = [];
-  let rootEntries;
-  try {
-    rootEntries = fs.readdirSync(projectDir, { withFileTypes: true });
-  } catch (e) {
-    return found;
-  }
-
-  for (const entry of rootEntries) {
-    // Only scan dot-directories (.claude, .codex, .cursor, .github, etc.)
-    // OpenSpec installs skills into these tool-specific dirs.
-    if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
-    // Skip common non-tool dot-dirs to avoid wasted scanning
-    if (entry.name === '.git' || entry.name === '.os-stronger') continue;
-
-    const skillsDir = path.join(projectDir, entry.name, 'skills');
-    if (!fs.existsSync(skillsDir)) continue;
-
-    try {
-      const skillEntries = fs.readdirSync(skillsDir, { withFileTypes: true });
-      for (const skillEntry of skillEntries) {
-        if (!skillEntry.name.startsWith('openspec-')) continue;
-        const skillFile = path.join(skillsDir, skillEntry.name, 'SKILL.md');
-        if (fs.existsSync(skillFile)) {
-          found.push({ toolDir: entry.name, skillName: skillEntry.name, skillFile });
-        }
-      }
-    } catch (e) {
-      // Skip directories we can't read
-    }
-  }
-  return found;
-}
-
-module.exports = {
-  patchApplyChange,
-  patchPropose,
-  backup,
-  restore,
-  findOpenSpecSkills,
-  PATCH_MARKER,
-  PROPOSE_MARKER,
-  OPENSEC_SKILLS,
-};
+module.exports = { findOpenSpecSkills, backup, restore };
