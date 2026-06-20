@@ -1,13 +1,43 @@
 #!/usr/bin/env node
 // os-stronger CLI entry point
+const { execSync } = require('child_process');
 const { init, enhancements } = require('../src/init');
 const pkg = require('../package.json');
+
+const GITHUB_REPO = 'GGGuYu/os-stronger';
 
 const args = process.argv.slice(2);
 const cmd = args[0];
 
 if (cmd === '--version' || cmd === '-v') {
   console.log('os-stronger v' + pkg.version);
+  process.exit(0);
+}
+
+if (cmd === '--update') {
+  console.log('os-stronger — 更新中...\n');
+  try {
+    execSync(`npm install -g ${GITHUB_REPO}`, { stdio: 'inherit' });
+    console.log('\n  \x1b[32m✓\x1b[0m os-stronger 已更新到最新版。');
+    console.log('  如需更新项目中的增强,在项目目录跑 \x1b[36mos-stronger init\x1b[0m 重新注入。');
+  } catch (e) {
+    console.error('  \x1b[31m✗\x1b[0m 更新失败: ' + (e.message || e));
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === '--uninstall') {
+  console.log('os-stronger — 卸载中...\n');
+  console.log('  \x1b[33m!\x1b[0m 这只卸载全局 CLI。项目中的增强需在各项目跑 \x1b[36mos-stronger init --restore\x1b[0m 撤销。');
+  console.log('');
+  try {
+    execSync(`npm uninstall -g os-stronger`, { stdio: 'inherit' });
+    console.log('\n  \x1b[32m✓\x1b[0m os-stronger 全局 CLI 已卸载。');
+  } catch (e) {
+    console.error('  \x1b[31m✗\x1b[0m 卸载失败: ' + (e.message || e));
+    process.exit(1);
+  }
   process.exit(0);
 }
 
@@ -30,17 +60,17 @@ if (cmd === 'init') {
   console.log('Usage:');
   console.log('  os-stronger init                                    # 交互式选择增强');
   console.log('  os-stronger init --enhancements review,skill-align  # 静默指定');
-  console.log('  os-stronger init --restore                          # 撤销所有增强');
+  console.log('  os-stronger init --restore                          # 撤销项目中的增强');
+  console.log('');
+  console.log('Package management:');
+  console.log('  os-stronger --update                                # 更新全局 CLI (从 GitHub 拉)');
+  console.log('  os-stronger --uninstall                             # 卸载全局 CLI');
   console.log('  os-stronger --version                               # 查看版本');
   console.log('');
-  console.log('Package management (via npm):');
-  console.log('  npm update -g os-stronger     # 更新到最新版');
-  console.log('  npm uninstall -g os-stronger  # 卸载全局包');
   const enhEntries = Object.entries(enhancements);
   if (enhEntries.length > 0) {
-    console.log('\nAvailable enhancements:');
+    console.log('Available enhancements:');
     for (const [id, enh] of enhEntries) {
-      // label 自带 id 前缀(如 "review — ..."),去掉避免重复
       const desc = enh.label ? enh.label.replace(/^.+?—\s*/, '') : '';
       console.log('  ' + id.padEnd(14) + desc);
     }

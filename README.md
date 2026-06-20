@@ -21,9 +21,7 @@ openspec-apply-change 原流程:
 ## 安装
 
 ```bash
-git clone https://github.com/GGGuYu/os-stronger.git
-cd os-stronger
-npm install -g .
+npm install -g GGGuYu/os-stronger   # 从 GitHub 直接装
 ```
 
 ## 使用
@@ -33,12 +31,22 @@ npm install -g .
 ```bash
 os-stronger init                                    # 交互式多选增强
 os-stronger init --enhancements review,skill-align  # 静默指定
-os-stronger init --restore                          # 撤销所有增强
+os-stronger init --restore                          # 撤销项目中的增强
 ```
 
 跑完重启 IDE / 重载会话即可。
 
 > **注意**：`--restore` 会删除 `.os-stronger/` 目录（含 review 时写的 `requirement-summary.md`）。如需保留，先备份再 restore。
+
+## 更新与卸载
+
+```bash
+os-stronger --update      # 更新全局 CLI（从 GitHub 拉最新）
+os-stronger --uninstall   # 卸载全局 CLI
+os-stronger --version     # 查看版本
+```
+
+> **注意**：`--uninstall` 只卸载全局 CLI。各项目中的增强需在各项目目录跑 `os-stronger init --restore` 撤销。
 
 ## 可用增强
 
