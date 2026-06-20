@@ -21,12 +21,13 @@ ${PATCH_MARKER}
         - If no completed review markers exist: \`currentCycle = 1\`.
         - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
      c. **Launch review subagent**:
-        Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
+        First, run \`openspec status --change "<name>" --json\` to get the \`changeRoot\` and \`artifactPaths\` (do NOT hardcode \`openspec/changes/<name>/\` — workspace mode uses a different path).
+        Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS from the status JSON, not hardcoded paths):
         - \`.os-stronger/review-guide.md\` — review rules and output format
         - \`.os-stronger/requirement-summary.md\` — what to check against
-        - \`openspec/changes/<name>/tasks.md\` — what was done
-        - \`openspec/changes/<name>/design.md\` — design intent (if exists)
-        - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
+        - \`tasks.md\` (from \`artifactPaths.tasks\`) — what was done
+        - \`design.md\` (from \`artifactPaths.design\`, if exists) — design intent
+        - \`proposal.md\` (from \`artifactPaths.proposal\`, if exists) — original requirements
         - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
         If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality."
      d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
@@ -69,20 +70,24 @@ module.exports = {
       if (content.includes(PATCH_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      // 分层降级匹配 all_done 注入点:
-      // L1: 精确匹配整句 "If state: all_done: congratulate, suggest archive"
-      // L2: 宽松匹配含 `state: "all_done"` 的行(到行尾)
-      // L3: 匹配含 state 且含 all_done 的行(最宽松,但要求是状态判断行,非解释性文字)
-      const l1 = /If `state: "all_done"`:\s*\w+,\s*suggest archive/;
+      // 分层降级匹配注入点:
+      // L1: 在 **Handle states:** 整块之前插入(不劈开状态列表)
+      // L2: 在 all_done 行之前插入(保留原行,但可能脱离列表缩进)
+      // L3: 在含 state+all_done 的行之前插入
+      const l1 = /(\*\*Handle states?:\*\*)/;
       const l2 = /If `state: "all_done"`:[^\n]*/;
       const l3 = /^(.*state.*all_done.*)$/m;
 
+      // L1: 在 Handle states 整块之前插入
+      if (l1.test(content)) {
+        return { patched: true, content: content.replace(l1, REVIEW_WORKFLOW_BLOCK.trim() + '\n\n   $1') };
+      }
+      // L2/L3: 在 all_done 行之前插入(保留原行)
       let matched = null;
-      for (const p of [l1, l2, l3]) {
+      for (const p of [l2, l3]) {
         if (p.test(content)) { matched = p; break; }
       }
       if (!matched) return { patched: false, reason: 'pattern-not-found', content };
-      // 在 all_done 行之前插入 review workflow(保留原行作为兜底)
       return { patched: true, content: content.replace(matched, (m) => REVIEW_WORKFLOW_BLOCK.trim() + '\n   ' + m) };
     },
     'openspec-propose': (content) => {

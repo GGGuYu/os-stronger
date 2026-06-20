@@ -17,13 +17,15 @@ function test(name, fn) {
   catch (e) { console.log('  ✗ ' + name + '\n    ' + e.message); FAIL++; }
 }
 
-// 真实 OpenSpec apply-change SKILL.md 片段(含 all_done 行 + Read context files + 下一步)
+// 真实 OpenSpec apply-change SKILL.md 片段(含 Handle states + all_done 行)
 const APPLY_CHANGE_SAMPLE = `4. **Read context files**
 
    Read every file path listed under contextFiles.
 
 5. **Show current progress**
 
+   **Handle states:**
+   - If \`state: "blocked"\`: suggest using openspec-continue-change
    - If \`state: "all_done"\`: congratulate, suggest archive
    - Otherwise: proceed to implementation
 `;
@@ -49,13 +51,20 @@ const PROPOSE_SAMPLE = `1. **If no clear input provided, ask what they want to b
 console.log('os-stronger patch 单元测试\n');
 
 // ─── review 增强 ───
-test('review: patchApplyChange 注入 review workflow(在 all_done 行之前,保留原行)', () => {
+test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列表)', () => {
   const result = reviewEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
   assert.ok(result.patched, '应 patched=true');
   assert.ok(result.content.includes('OS-STRONGER-REVIEW'), '应含 marker');
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
   assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
   assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
+  // review 块应在 Handle states 之前
+  const markerPos = result.content.indexOf('OS-STRONGER-REVIEW');
+  const handleStatesPos = result.content.indexOf('**Handle states:**');
+  assert.ok(markerPos < handleStatesPos, '应在 Handle states 之前');
+  // Handle states 列表应完整(blocked + all_done + otherwise 都在)
+  assert.ok(result.content.includes('state: "blocked"'), 'blocked 行应在');
+  assert.ok(result.content.includes('Otherwise: proceed'), 'otherwise 行应在');
 });
 
 test('review: patchApplyChange 幂等(再 patch 返回 already-patched)', () => {
@@ -195,14 +204,14 @@ test('patcher: findOpenSpecSkills 跳过符号链接', () => {
 });
 
 // ─── 分层降级测试(OpenSpec 改格式时仍能注入) ───
-test('review: all_done 整句被改写仍匹配(L2 宽松匹配)', () => {
-  const modified = '   - If `state: "all_done"`: you are done!\n';
+test('review: 无 Handle states 但有 all_done 整句仍匹配(L2)', () => {
+  const modified = 'Some text\n- If `state: "all_done"`: you are done!\n';
   const result = reviewEnh.patches['openspec-apply-change'](modified);
   assert.ok(result.patched, 'L2 应匹配含 all_done 的行');
   assert.ok(result.content.includes('OS-STRONGER-REVIEW'));
 });
 
-test('review: all_done 只剩关键词仍匹配(L3 含 state 的行)', () => {
+test('review: 无 Handle states,all_done 只剩关键词仍匹配(L3 含 state)', () => {
   const modified = '   - When state is all_done: stop\n';
   const result = reviewEnh.patches['openspec-apply-change'](modified);
   assert.ok(result.patched, 'L3 应匹配含 state + all_done 的行');
