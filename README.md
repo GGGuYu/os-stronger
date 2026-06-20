@@ -51,7 +51,7 @@ os-stronger init --restore                          # 撤销所有增强
 1. **STEP 0 熔断**（最高优先级）：扫 tasks.md，如果 Review 2 已完成 → 询问用户是否 archive，不启动子 agent
 2. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
 3. 写需求总结到 `.os-stronger/requirement-summary.md`
-4. 起子 agent，甩文件路径（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
+4. 起子 agent，先跑 `openspec status --change <name> --json` 拿文件路径（不写死路径，兼容 workspace 模式），甩路径给子 agent（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
 5. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings
 6. 主 agent 独立判断每条：是否属实？是否值得现在立即修？
 7. 属实且值得修的 → 建 `Review N Fix - <desc>` task
@@ -124,9 +124,10 @@ init 后项目里会多出：
 
 ## 限制
 
-- **纯提示词约束**：没有 hook，agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的，同样的机制
-- **patch 依赖文本匹配**：OpenSpec 改措辞或步骤标题时，分层降级策略会尝试更宽松的锚点（如只认 `all_done` / `**Steps**` 关键词）。只有关键词完全消失才会 `pattern-not-found`
+- **纯提示词约束**：没有 hook，agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的，同样的机制。review 主触发靠 tasks.md 里的显式 Review task，all_done 分支仅作兜底
+- **patch 依赖文本匹配**：OpenSpec 改措辞或步骤标题时，分层降级策略会尝试更宽松的锚点（如 `**Handle states:**` → `all_done` → `**Steps**`）。只有关键词完全消失才会 `pattern-not-found`
 - **非 git 项目 review 覆盖有限**：review 子 agent 用 `git diff HEAD` 看改动，非 git 项目或改动已 commit 时需直接读 tasks.md 涉及的文件（注入文本已含此兜底指导）
+- **workspace 模式**：OpenSpec 1.4+ 的 workspace 模式 changes 目录不在 `openspec/changes/`。注入文本已改为先跑 `openspec status --json` 拿路径，不写死
 - **OpenSpec 更新后需重跑**：`openspec update` 会覆盖 skill 文件，之后跑一次 `os-stronger init` 重新注入
 
 ## 扩展：加新增强

@@ -25,9 +25,9 @@ ${PATCH_MARKER}
         Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS from the status JSON, not hardcoded paths):
         - \`.os-stronger/review-guide.md\` — review rules and output format
         - \`.os-stronger/requirement-summary.md\` — what to check against
-        - \`tasks.md\` (from \`artifactPaths.tasks\`) — what was done
-        - \`design.md\` (from \`artifactPaths.design\`, if exists) — design intent
-        - \`proposal.md\` (from \`artifactPaths.proposal\`, if exists) — original requirements
+        - \`tasks.md\` — from \`artifactPaths.tasks.resolvedOutputPath\` (or \`artifactPaths.tasks.existingOutputPaths[0]\` if already created)
+        - \`design.md\` — from \`artifactPaths.design.resolvedOutputPath\` (if exists)
+        - \`proposal.md\` — from \`artifactPaths.proposal.resolvedOutputPath\` (if exists)
         - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
         If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality."
      d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
