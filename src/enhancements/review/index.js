@@ -22,7 +22,9 @@ ${PATCH_MARKER}
         - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
      c. **Launch review subagent**:
         First, run \`openspec status --change "<name>" --json\` to get the \`changeRoot\` and \`artifactPaths\` (do NOT hardcode \`openspec/changes/<name>/\` — workspace mode uses a different path).
-        Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS from the status JSON, not hardcoded paths):
+        Use the built-in subagent mechanism. Tell the subagent:
+        - The change being reviewed is: **\`<name>\`** (use the actual change name from step 1)
+        - Read these files (pass PATHS from the status JSON, not hardcoded paths):
         - \`.os-stronger/review-guide.md\` — review rules and output format
         - \`.os-stronger/requirement-summary.md\` — what to check against
         - \`tasks.md\` — from \`artifactPaths.tasks.resolvedOutputPath\` (or \`artifactPaths.tasks.existingOutputPaths[0]\` if already created)
