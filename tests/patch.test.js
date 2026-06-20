@@ -88,16 +88,16 @@ test('review: patchPropose 幂等', () => {
 });
 
 // ─── skill-align 增强 ───
-test('skill-align: patchPropose 注入到步骤4之前', () => {
+test('skill-align: patchPropose 注入到步骤5之前(所有 artifact 生成后)', () => {
   const result = skillAlignEnh.patches['openspec-propose'](PROPOSE_SAMPLE);
   assert.ok(result.patched);
   assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
-  // 应在步骤4之前,步骤3之后
+  // 应在步骤5之前,步骤4之后
   const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-PROPOSE');
-  const step3Pos = result.content.indexOf('3. **Get the artifact');
   const step4Pos = result.content.indexOf('4. **Create artifacts');
-  assert.ok(markerPos > step3Pos, '应在步骤3之后');
-  assert.ok(markerPos < step4Pos, '应在步骤4之前');
+  const step5Pos = result.content.indexOf('5. **Show final status');
+  assert.ok(markerPos > step4Pos, '应在步骤4之后');
+  assert.ok(markerPos < step5Pos, '应在步骤5之前');
 });
 
 test('skill-align: patchPropose 幂等', () => {
@@ -201,10 +201,17 @@ test('review: all_done 整句被改写仍匹配(L2 宽松匹配)', () => {
   assert.ok(result.content.includes('OS-STRONGER-REVIEW'));
 });
 
-test('review: all_done 只剩关键词仍匹配(L3 最宽松)', () => {
-  const modified = '   - When all_done is reached: stop\n';
+test('review: all_done 只剩关键词仍匹配(L3 含 state 的行)', () => {
+  const modified = '   - When state is all_done: stop\n';
   const result = reviewEnh.patches['openspec-apply-change'](modified);
-  assert.ok(result.patched, 'L3 应匹配含 all_done 关键词的行');
+  assert.ok(result.patched, 'L3 应匹配含 state + all_done 的行');
+});
+
+test('review: 纯解释性文字含 all_done 但不含 state → 不匹配', () => {
+  const modified = 'The all_done state means everything is complete.\nNo branch here.';
+  const result = reviewEnh.patches['openspec-apply-change'](modified);
+  assert.strictEqual(result.patched, false, 'L3 要求同时含 state 和 all_done');
+  assert.strictEqual(result.reason, 'pattern-not-found');
 });
 
 test('review: 完全没有 all_done 返回 pattern-not-found', () => {
@@ -213,14 +220,14 @@ test('review: 完全没有 all_done 返回 pattern-not-found', () => {
   assert.strictEqual(result.reason, 'pattern-not-found');
 });
 
-test('skill-align: propose 步骤4标题变了仍匹配(L2 Steps 之后)', () => {
-  const modified = PROPOSE_SAMPLE.replace('Create artifacts in sequence', 'Generate all artifacts now');
+test('skill-align: propose 步骤5标题变了仍匹配(L2 步骤4之后)', () => {
+  const modified = PROPOSE_SAMPLE.replace('Show final status', 'Display completion summary');
   const result = skillAlignEnh.patches['openspec-propose'](modified);
-  assert.ok(result.patched, 'L2 应匹配 **Steps** 之后');
+  assert.ok(result.patched, 'L2 应匹配步骤4之后');
   assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-PROPOSE'));
   const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-PROPOSE');
-  const stepsPos = result.content.indexOf('**Steps**');
-  assert.ok(markerPos > stepsPos, '应在 Steps 之后');
+  const step4Pos = result.content.indexOf('4. **Create artifacts');
+  assert.ok(markerPos > step4Pos, '应在步骤4之后');
 });
 
 test('skill-align: propose 无 Steps 但有数字步骤 → L3 插第一个步骤前', () => {

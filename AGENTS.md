@@ -181,12 +181,12 @@ module.exports = {
 **为什么**:OpenSpec 可能改措辞(`congratulate`→`celebrate`)、改步骤号/标题(`Create artifacts`→`Generate artifacts`)、甚至大改结构。单一精确匹配太脆弱。分层降级保证:只要关键词还在(如 `all_done` / `**Steps**`),就能找到注入点。
 
 **降级表**:
-- review → apply-change: L1 整句 → L2 含 all_done 的行 → L3 all_done 关键词
+- review → apply-change: L1 整句 → L2 含 `state: "all_done"` 的行 → L3 含 state 且含 all_done 的行(要求是状态判断行,非纯解释性文字)
 - review → propose: 末尾追加(天然通用,无降级需要)
-- skill-align → propose: L1 步骤4标题前 → L2 `**Steps**` 之后 → L3 末尾
+- skill-align → propose: L1 步骤5 `Show final status` 之前 → L2 步骤4之后 → L3 `**Steps**` 之后 → L4 第一个数字步骤之前
 - skill-align → apply-change: L1 `Read context files` 之后 → L2 `**Steps**` 之后 → L3 末尾
 
-**红线**:不要去掉降级链。L1 失败必须尝试 L2,L2 失败必须尝试 L3。只有 L3 也失败(关键词完全不存在)才返回 `pattern-not-found`。
+**红线**:不要去掉降级链。L1 失败必须尝试 L2,以此类推。只有最宽松级别也失败(关键词完全不存在)才返回 `pattern-not-found`。L3/L4 的语义要正确——不能匹配到纯解释性文字(如 L3 要求同时含 `state` 和 `all_done`)。
 
 ---
 
@@ -195,10 +195,10 @@ module.exports = {
 ### review 增强
 
 **patch 位置**(分层降级):
-- `openspec-apply-change`: L1 整句 `all_done: congratulate, suggest archive` → L2 含 all_done 的行 → L3 all_done 关键词,替换为 review workflow
+- `openspec-apply-change`: L1 整句 `all_done: congratulate, suggest archive` → L2 含 `state: "all_done"` 的行 → L3 含 state 且含 all_done 的行,替换为 review workflow。**末尾追加 re-check state 指令**(标完所有 task 后必须重跑 `openspec instructions apply` 拿新 state,否则 review 不触发)
 - `openspec-propose`: 末尾追加 review 提醒
 
-**注入的 review workflow**(7 步):
+**注入的 review workflow**(7 步 + re-check):
 1. 检查 `.os-stronger/review-guide.md` 存在性(不读内容)
 2. 写需求总结到 `.os-stronger/requirement-summary.md`
 3. 起 review 子 agent(甩路径:review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD)
@@ -206,6 +206,7 @@ module.exports = {
 5. 主 agent 评估:是否属实?是否值得立即修?
 6. 属实且值得修 → 建 `Review N Fix - <desc>` task
 7. 修完触发下一轮,最多 2 轮,Review 2 修完 archive
+8. **re-check state**:标完最后一个 task 后必须重跑状态检查(补偿 OpenSpec 不保证重跑的缺陷)
 
 **支撑文件**:
 - `.os-stronger/review-guide.md` — 子 agent 审查规则(模板,init 时拷贝)
@@ -216,8 +217,10 @@ module.exports = {
 ### skill-align 增强
 
 **patch 位置**(分层降级):
-- `openspec-propose`: L1 步骤4 `Create artifacts` 之前 → L2 `**Steps**` 之后 → L3 末尾,插入 skill 对齐步骤
+- `openspec-propose`: L1 步骤5 `Show final status` 之前 → L2 步骤4之后 → L3 `**Steps**` 之后 → L4 第一个数字步骤之前,插入 skill 对齐步骤(此时 design.md 已存在)
 - `openspec-apply-change`: L1 `Read context files` 之后 → L2 `**Steps**` 之后 → L3 末尾,插入 skill 约定提醒
+
+**时序设计**:skill 对齐在步骤4(生成 artifacts)之后、步骤5(show status)之前执行。此时 design.md 已由步骤4生成,追加 `## Skill Alignment` 章节不会冲突。
 
 **注入的 skill 对齐流程**(propose 侧):
 1. 扫描项目可用 skills(`.*/skills/*/SKILL.md` 的 frontmatter)
@@ -283,7 +286,7 @@ patches: {
 
 ## 七、已知限制
 
-1. **纯提示词约束**:没有 hook,agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的,同样的机制,同样的可靠性。
+1. **纯提示词约束**:没有 hook,agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的,同样的机制,同样的可靠性。review 的触发依赖 agent 在标完所有 task 后重跑状态检查——注入文本已显式要求("MUST re-run step 3"),但仍是软约束。
 
 2. **patch 依赖文本匹配**:OpenSpec 大幅改写 skill 文本时 patch 可能失败。但分层降级策略(决策 7)保证:只要关键词还在(`all_done` / `**Steps**`),就能找到注入点。只有关键词完全消失才返回 `pattern-not-found`。
 

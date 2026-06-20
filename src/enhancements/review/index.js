@@ -39,6 +39,8 @@ ${PATCH_MARKER}
           - If NO findings were worth fixing: suggest archive immediately.
           - If \`currentCycle === 2\`: fix the Review 2 tasks, then when all complete, the circuit breaker in step b will fire — suggest archive. Do NOT manually trigger Review 3.
           - If \`currentCycle === 1\`: fix the Review 1 tasks, then when all complete, the review workflow will trigger again for Review 2.
+
+   **IMPORTANT — re-check state after completing all tasks**: When you mark the last task as \`[x]\`, you MUST re-run step 3 (\`openspec instructions apply --change "<name>" --json\`) to get the updated \`state\`. Only then proceed to the \`state: "all_done"\` branch above. Do NOT skip this re-check — the review workflow depends on it.
 ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `
@@ -58,11 +60,11 @@ module.exports = {
       }
       // 分层降级匹配 all_done 注入点:
       // L1: 精确匹配整句 "If state: all_done: congratulate, suggest archive"
-      // L2: 宽松匹配含 all_done 的行(到行尾)
-      // L3: 匹配 all_done 关键词所在行(最宽松,只认关键词)
+      // L2: 宽松匹配含 `state: "all_done"` 的行(到行尾)
+      // L3: 匹配含 state 且含 all_done 的行(最宽松,但要求是状态判断行,非解释性文字)
       const l1 = /If `state: "all_done"`:\s*\w+,\s*suggest archive/;
       const l2 = /If `state: "all_done"`:[^\n]*/;
-      const l3 = /^.*all_done.*$/m;
+      const l3 = /^(.*state.*all_done.*)$/m;
 
       let matched = null;
       for (const p of [l1, l2, l3]) {

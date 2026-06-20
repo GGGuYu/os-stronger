@@ -8,15 +8,15 @@ const APPLY_MARKER = '<!-- OS-STRONGER-SKILL-ALIGN-APPLY -->';
 // 注入到 openspec-propose: 在 "Read context files" 之前插入 skill 对齐步骤
 const PROPOSE_BLOCK = `
 ${PROPOSE_MARKER}
-**Skill Alignment (os-stronger)**: Before writing artifacts, do a skill alignment step:
+**Skill Alignment (os-stronger)**: After creating all artifacts (step 4), before showing final status, do a skill alignment step:
 1. Scan available skills: list all directories matching \`.*/skills/*/\` in the project root (e.g., \`.claude/skills/*/\`, \`.codex/skills/*/\`). For each, read the \`SKILL.md\` frontmatter \`name\` and \`description\`.
-2. Based on the user's change request, recommend skills that seem relevant. Present them to the user with the **AskUserQuestion tool** (multiSelect):
+2. Based on the change being proposed, recommend skills that seem relevant for implementation. Present them to the user with the **AskUserQuestion tool** (multiSelect):
    - Question: "Which skills should be prioritized for this change?"
    - Options: each relevant skill's name + short description
 3. The user selects skills. Categorize them:
    - **Must-use** (user explicitly selected): the agent SHALL read and actively use these skills during implementation.
    - **Optional** (not selected, but available): the agent MAY use them if relevant, but doesn't have to.
-4. Write the alignment result into \`design.md\` under a new section:
+4. Write the alignment result into \`design.md\` (which should now exist from step 4). Append a new section:
 
 \`\`\`markdown
 ## Skill Alignment
@@ -30,7 +30,7 @@ ${PROPOSE_MARKER}
 - \`<skill-name>\` — <one-line description>
 \`\`\`
 
-If the user skips selection (selects nothing), write "No skills explicitly selected — use your judgment."
+If \`design.md\` does not exist yet (edge case), create it with just this section. If the user skips selection (selects nothing), write "No skills explicitly selected — use your judgment."
 ${PROPOSE_MARKER}`;
 
 // 注入到 openspec-apply-change: 在 "Read context files" 步骤后提醒
@@ -51,26 +51,34 @@ module.exports = {
       if (content.includes(PROPOSE_MARKER)) {
         return { patched: false, reason: 'already-patched', content };
       }
-      // 分层降级:在"写文档前"插入 skill 对齐
-      // L1: 步骤4 "Create artifacts in sequence" 之前(精确)
-      // L2: **Steps** 之后第一个步骤之前(宽松,靠前但不影响功能)
-      // L3: 文件末尾追加(兜底)
-      const l1 = content.search(/4\.\s+\*\*Create artifacts in sequence/);
+      // 分层降级:在"所有 artifact 生成后、show status 前"插入 skill 对齐
+      // L1: 步骤5 "Show final status" 之前(精确,此时 design.md 已存在)
+      // L2: 步骤4 "Create artifacts" 之后(宽松,靠后)
+      // L3: 第一个数字步骤之前(兜底,靠前但语义不坏)
+      const l1 = content.search(/5\.\s+\*\*Show final status/);
       if (l1 !== -1) {
         const insertAt = content.lastIndexOf('\n', l1);
         return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
       }
+      const step4End = content.search(/4\.\s+\*\*Create artifacts[\s\S]*?\n\d+\.\s/);
+      if (step4End !== -1) {
+        // 步骤4 内容结束后、下一个步骤之前
+        const nextStepMatch = content.slice(step4End).match(/\n(\d+\.\s)/);
+        if (nextStepMatch) {
+          const insertAt = step4End + nextStepMatch.index;
+          return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
+        }
+      }
       const stepsIdx = content.indexOf('**Steps**');
       if (stepsIdx !== -1) {
-        // Steps 之后第一个换行后插入
         const afterSteps = content.indexOf('\n', stepsIdx);
         const insertAt = afterSteps !== -1 ? afterSteps + 1 : content.length;
         return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
       }
-      // L3: 插到第一个数字步骤之前(比纯末尾语义正确——"Before writing" 不该放最后)
+      // L3: 插到第一个数字步骤之前
       const firstStep = content.search(/\n\d+\.\s/);
       if (firstStep !== -1) {
-        const insertAt = firstStep; // \n 已含在匹配中,插到步骤行之前
+        const insertAt = firstStep;
         return { patched: true, content: content.slice(0, insertAt) + '\n' + PROPOSE_BLOCK.trim() + content.slice(insertAt) };
       }
       // 真的没有步骤,才末尾
