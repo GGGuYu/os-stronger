@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 // os-stronger CLI entry point
 const { init, enhancements } = require('../src/init');
+const pkg = require('../package.json');
 
 const args = process.argv.slice(2);
 const cmd = args[0];
+
+if (cmd === '--version' || cmd === '-v') {
+  console.log('os-stronger v' + pkg.version);
+  process.exit(0);
+}
 
 if (cmd === 'init') {
   const restore = args.includes('--restore');
@@ -20,11 +26,16 @@ if (cmd === 'init') {
       process.exit(1);
     });
 } else {
-  console.log('os-stronger — OpenSpec enhancement layer\n');
+  console.log('os-stronger — OpenSpec enhancement layer v' + pkg.version + '\n');
   console.log('Usage:');
   console.log('  os-stronger init                                    # 交互式选择增强');
   console.log('  os-stronger init --enhancements review,skill-align  # 静默指定');
   console.log('  os-stronger init --restore                          # 撤销所有增强');
+  console.log('  os-stronger --version                               # 查看版本');
+  console.log('');
+  console.log('Package management (via npm):');
+  console.log('  npm update -g os-stronger     # 更新到最新版');
+  console.log('  npm uninstall -g os-stronger  # 卸载全局包');
   const enhEntries = Object.entries(enhancements);
   if (enhEntries.length > 0) {
     console.log('\nAvailable enhancements:');
