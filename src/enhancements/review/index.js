@@ -12,7 +12,7 @@ ${PATCH_MARKER}
 
      **STEP 0 — CIRCUIT BREAKER (highest priority, check FIRST before anything else)**:
      Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
-     - If \`lastCompleted >= 2\` (Review 2 already fully completed): **STOP. Do NOT launch any subagent. Do NOT write anything. Mark this Review task \`[x]\` and suggest archive immediately.** The 2-cycle limit is HARD. No exceptions. Even if there are still issues — archive.
+     - If \`lastCompleted >= 2\` (Review 2 already fully completed): **STOP. Do NOT launch any subagent. Do NOT write anything. Mark this Review task \`[x]\`. Then ask the user: "Review 已完成 2 轮(硬上限),是否归档此 change?" Do NOT auto-archive — the user decides.** The 2-cycle limit is HARD. No exceptions.
      - This check must happen before any other step. If it fires, skip steps 0a-f entirely.
 
      0a. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you). If it does NOT exist, skip review and mark this task \`[x]\`.
@@ -28,7 +28,7 @@ ${PATCH_MARKER}
         - \`openspec/changes/<name>/design.md\` — design intent (if exists)
         - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
         - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
-        If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality. After this, the change will be archived regardless."
+        If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality."
      d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
         1. Is it actually TRUE? (use your knowledge of the codebase)
         2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
@@ -38,13 +38,13 @@ ${PATCH_MARKER}
         Where N is \`currentCycle\`.
         Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
      f. **After review** (uses same currentCycle from step b):
-        - If NO findings were worth fixing: mark the Review task \`[x]\`, suggest archive.
+        - If NO findings were worth fixing: mark the Review task \`[x]\`. Then ask the user: "Review 通过,是否归档此 change?" Do NOT auto-archive.
         - If \`currentCycle === 1\` and there are fix tasks: mark the Review task \`[x]\`, then do the fix tasks. After all fix tasks are done, add a new task: \`- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 2 子 agent 对本次 change 做独立审查\`. This becomes the next Review trigger.
-        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker in STEP 0 will fire on the next Review task — suggest archive. Do NOT add a Review 3 task.
+        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker in STEP 0 will fire on the next Review task. Do NOT add a Review 3 task. Do NOT auto-archive — ask the user.
 
    **Fallback (ONLY if review was NOT done this round — do NOT re-trigger if review already ran)**:
-     - First, check \`tasks.md\`: is there any task containing "Review" that is marked \`[x]\`? If YES → review already happened this round, do NOT trigger again. Congratulate, suggest archive.
-     - If NO Review task was ever marked \`[x]\` (meaning review was skipped — e.g. the Review task was missing from tasks.md, or propose didn't add it): Check if \`.os-stronger/review-guide.md\` exists. If NOT: congratulate, suggest archive (unchanged behavior).
+     - First, check \`tasks.md\`: is there any task containing "Review" that is marked \`[x]\`? If YES → review already happened this round, do NOT trigger again. Ask the user: "是否归档此 change?" Do NOT auto-archive.
+     - If NO Review task was ever marked \`[x]\` (meaning review was skipped — e.g. the Review task was missing from tasks.md, or propose didn't add it): Check if \`.os-stronger/review-guide.md\` exists. If NOT: ask the user if they want to archive (unchanged behavior).
      - If it EXISTS: review was skipped this round. Run the review workflow above (steps a-f) with \`currentCycle = 1\`, then decide archive or add fix tasks + Review 2 task as above.
 ${PATCH_MARKER}`;
 
