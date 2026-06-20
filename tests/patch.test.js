@@ -48,6 +48,19 @@ const PROPOSE_SAMPLE = `1. **If no clear input provided, ask what they want to b
 - Always read context files before starting
 `;
 
+// 真实 OpenSpec explore SKILL.md 片段(含 Ending Discovery)
+const EXPLORE_SAMPLE = `## Ending Discovery
+
+There's no required ending. Discovery might:
+
+- **Flow into a proposal**: "Ready to start? I can create a change proposal."
+- **Result in artifact updates**: "Updated design.md with these decisions"
+
+## What We Figured Out
+
+Some summary.
+`;
+
 console.log('os-stronger patch 单元测试\n');
 
 // ─── review 增强 ───
@@ -262,6 +275,27 @@ test('skill-align: apply-change 没有 Read context files 仍注入(L2 Steps 之
   const result = skillAlignEnh.patches['openspec-apply-change'](modified);
   assert.ok(result.patched);
   assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-APPLY'));
+});
+
+test('skill-align: patchExplore 在 Ending Discovery 段后注入提醒', () => {
+  const result = skillAlignEnh.patches['openspec-explore'](EXPLORE_SAMPLE);
+  assert.ok(result.patched);
+  assert.ok(result.content.includes('OS-STRONGER-SKILL-ALIGN-EXPLORE'));
+  assert.ok(result.content.includes('propose'), '应提及 propose');
+  assert.ok(result.content.includes('skill alignment'), '应提及 skill alignment');
+  // 应在 Ending Discovery 段内,What We Figured Out 之前
+  const markerPos = result.content.indexOf('OS-STRONGER-SKILL-ALIGN-EXPLORE');
+  const endingPos = result.content.indexOf('## Ending Discovery');
+  const figuredPos = result.content.indexOf('## What We Figured Out');
+  assert.ok(markerPos > endingPos, '应在 Ending Discovery 之后');
+  assert.ok(markerPos < figuredPos, '应在 What We Figured Out 之前');
+});
+
+test('skill-align: patchExplore 幂等', () => {
+  const r1 = skillAlignEnh.patches['openspec-explore'](EXPLORE_SAMPLE);
+  const r2 = skillAlignEnh.patches['openspec-explore'](r1.content);
+  assert.strictEqual(r2.patched, false);
+  assert.strictEqual(r2.reason, 'already-patched');
 });
 
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');

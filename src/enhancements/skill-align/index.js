@@ -4,6 +4,7 @@
 
 const PROPOSE_MARKER = '<!-- OS-STRONGER-SKILL-ALIGN-PROPOSE -->';
 const APPLY_MARKER = '<!-- OS-STRONGER-SKILL-ALIGN-APPLY -->';
+const EXPLORE_MARKER = '<!-- OS-STRONGER-SKILL-ALIGN-EXPLORE -->';
 
 // 注入到 openspec-propose: 在 "Read context files" 之前插入 skill 对齐步骤
 const PROPOSE_BLOCK = `
@@ -30,7 +31,7 @@ ${PROPOSE_MARKER}
 - \`<skill-name>\` — <one-line description>
 \`\`\`
 
-If \`design.md\` does not exist yet (edge case), create it with just this section. If the user skips selection (selects nothing), write "No skills explicitly selected — use your judgment."
+If \`design.md\` does not exist yet (edge case), create it with just this section. If the user skips selection (selects nothing, or says "随便/随意/你决定"), do NOT force a selection — write "No skills explicitly selected — agent to use its own judgment based on the requirements." and proceed. The skill alignment is advisory, not mandatory.
 ${PROPOSE_MARKER}`;
 
 // 注入到 openspec-apply-change: 在 "Read context files" 步骤后提醒
@@ -41,6 +42,12 @@ ${APPLY_MARKER}
 - **Optional skills**: Use your judgment — invoke if relevant, skip if not.
 If the section is absent or says "No skills explicitly selected", proceed normally without skill constraints.
 ${APPLY_MARKER}`;
+
+// 注入到 openspec-explore: 在 "Ending Discovery" 段加提醒
+const EXPLORE_BLOCK = `
+${EXPLORE_MARKER}
+**os-stronger reminder**: If exploration feels complete and the user is ready to move forward, suggest entering propose mode (\`openspec-propose\`). When propose runs, os-stronger will automatically remind the agent to do a skill alignment step (asking the user which skills to prioritize). You don't need to do skill alignment here — just let the user know it will happen in propose.
+${EXPLORE_MARKER}`;
 
 module.exports = {
   id: 'skill-align',
@@ -107,6 +114,29 @@ module.exports = {
         return { patched: true, content: content.slice(0, insertAt) + '\n' + APPLY_BLOCK.trim() + content.slice(insertAt) };
       }
       return { patched: true, content: content.trimEnd() + '\n\n' + APPLY_BLOCK.trim() + '\n' };
+    },
+    'openspec-explore': (content) => {
+      if (content.includes(EXPLORE_MARKER)) {
+        return { patched: false, reason: 'already-patched', content };
+      }
+      // 在 "Ending Discovery" 段之后插入提醒
+      // L1: "Ending Discovery" 标题之后
+      // L2: "Flow into a proposal" 之后
+      // L3: 文件末尾
+      const endingIdx = content.indexOf('## Ending Discovery');
+      if (endingIdx !== -1) {
+        // 找到 Ending Discovery 段的末尾(下一个 ## 或文件末尾)
+        const afterHeading = content.indexOf('\n', endingIdx);
+        const nextSection = content.indexOf('\n## ', afterHeading);
+        const insertAt = nextSection !== -1 ? nextSection : content.length;
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + EXPLORE_BLOCK.trim() + content.slice(insertAt) };
+      }
+      const flowIdx = content.indexOf('Flow into a proposal');
+      if (flowIdx !== -1) {
+        const insertAt = content.indexOf('\n', flowIdx);
+        return { patched: true, content: content.slice(0, insertAt) + '\n' + EXPLORE_BLOCK.trim() + content.slice(insertAt) };
+      }
+      return { patched: true, content: content.trimEnd() + '\n\n' + EXPLORE_BLOCK.trim() + '\n' };
     },
   },
 
