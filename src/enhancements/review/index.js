@@ -39,8 +39,9 @@ ${PATCH_MARKER}
         - If \`currentCycle === 1\` and there are fix tasks: mark the Review task \`[x]\`, then do the fix tasks. After all fix tasks are done, add a new task: \`- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 2 子 agent 对本次 change 做独立审查\`. This becomes the next Review trigger.
         - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker fires — suggest archive. Do NOT add a Review 3 task.
 
-   **Fallback: If \`state: "all_done"\` is reached but the last completed task was NOT a Review task** (meaning this round never ran review — e.g. the Review task was missing from tasks.md, or propose didn't add it):
-     - Check if \`.os-stronger/review-guide.md\` exists. If NOT: congratulate, suggest archive (unchanged behavior).
+   **Fallback (ONLY if review was NOT done this round — do NOT re-trigger if review already ran)**:
+     - First, check \`tasks.md\`: is there any task containing "Review" that is marked \`[x]\`? If YES → review already happened this round, do NOT trigger again. Congratulate, suggest archive.
+     - If NO Review task was ever marked \`[x]\` (meaning review was skipped — e.g. the Review task was missing from tasks.md, or propose didn't add it): Check if \`.os-stronger/review-guide.md\` exists. If NOT: congratulate, suggest archive (unchanged behavior).
      - If it EXISTS: review was skipped this round. Run the review workflow above (steps a-f) with \`currentCycle = 1\`, then decide archive or add fix tasks + Review 2 task as above.
 ${PATCH_MARKER}`;
 
