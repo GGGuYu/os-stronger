@@ -23,7 +23,8 @@ ${PATCH_MARKER}
      c. **Launch review subagent**:
         First, run \`openspec status --change "<name>" --json\` to get the \`changeRoot\` and \`artifactPaths\` (do NOT hardcode \`openspec/changes/<name>/\` — workspace mode uses a different path).
         Use the built-in subagent mechanism. Tell the subagent:
-        - The change being reviewed is: **\`<name>\`** (use the actual change name from step 1)
+        - You are reviewing an **OpenSpec change** named **\`<name>\`** (in the current working directory).
+        - The change's files can be found at the paths listed below.
         - Read these files (pass PATHS from the status JSON, not hardcoded paths):
         - \`.os-stronger/review-guide.md\` — review rules and output format
         - \`.os-stronger/requirement-summary.md\` — what to check against
