@@ -9,15 +9,18 @@ ${PATCH_MARKER}
    **os-stronger review workflow** — triggered when the current task is a Review task (e.g. "Review: 按照...启动 Review N...") OR when \`state: "all_done"\` is reached without a Review task having run yet.
 
    **When you encounter a Review task** (the task description contains "Review" and "启动 Review"):
-     0. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you). If it does NOT exist, skip review and mark this task \`[x]\`.
+
+     **STEP 0 — CIRCUIT BREAKER (highest priority, check FIRST before anything else)**:
+     Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
+     - If \`lastCompleted >= 2\` (Review 2 already fully completed): **STOP. Do NOT launch any subagent. Do NOT write anything. Mark this Review task \`[x]\` and suggest archive immediately.** The 2-cycle limit is HARD. No exceptions. Even if there are still issues — archive.
+     - This check must happen before any other step. If it fires, skip steps 0a-f entirely.
+
+     0a. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you). If it does NOT exist, skip review and mark this task \`[x]\`.
      a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
-     b. **Determine review cycle** (single source of truth for cycle number):
-        - Scan \`tasks.md\` for task lines matching \`Review N Fix -\`.
-        - Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
+     b. **Determine review cycle** (same scan as STEP 0, but now we know lastCompleted < 2):
         - If no completed review markers exist: \`currentCycle = 1\`.
         - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
-        - **Circuit breaker**: If \`lastCompleted >= 2\` (Review 2 already fully completed): do NOT launch any subagent. Mark the Review task \`[x]\` and suggest archive. The 2-cycle limit is hard.
-     c. **Launch review subagent** (only reached if currentCycle <= 2):
+     c. **Launch review subagent**:
         Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
         - \`.os-stronger/review-guide.md\` — review rules and output format
         - \`.os-stronger/requirement-summary.md\` — what to check against
@@ -37,7 +40,7 @@ ${PATCH_MARKER}
      f. **After review** (uses same currentCycle from step b):
         - If NO findings were worth fixing: mark the Review task \`[x]\`, suggest archive.
         - If \`currentCycle === 1\` and there are fix tasks: mark the Review task \`[x]\`, then do the fix tasks. After all fix tasks are done, add a new task: \`- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 2 子 agent 对本次 change 做独立审查\`. This becomes the next Review trigger.
-        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker fires — suggest archive. Do NOT add a Review 3 task.
+        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker in STEP 0 will fire on the next Review task — suggest archive. Do NOT add a Review 3 task.
 
    **Fallback (ONLY if review was NOT done this round — do NOT re-trigger if review already ran)**:
      - First, check \`tasks.md\`: is there any task containing "Review" that is marked \`[x]\`? If YES → review already happened this round, do NOT trigger again. Congratulate, suggest archive.
