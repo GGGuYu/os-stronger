@@ -6,46 +6,53 @@ const PROPOSE_MARKER = '<!-- OS-STRONGER-REVIEW-PROPOSE -->';
 
 const REVIEW_WORKFLOW_BLOCK = `
 ${PATCH_MARKER}
-   - If \`state: "all_done"\`:
-     - Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you).
-     - If it does NOT exist: congratulate, suggest archive (unchanged behavior).
-     - If it EXISTS:
-       a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
-       b. **Determine review cycle** (single source of truth for cycle number):
-          - Scan \`tasks.md\` for task lines matching \`Review N Fix -\`.
-          - Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
-          - If no completed review markers exist: \`currentCycle = 1\`.
-          - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
-          - **Circuit breaker**: If \`lastCompleted >= 2\` (Review 2 already fully completed): do NOT launch any subagent. Suggest archive immediately. The 2-cycle limit is hard.
-          - (If Review 1 Fix tasks still have \`[ ]\` items, \`lastCompleted\` = 0, so \`currentCycle\` = 1 — you are still in Review 1.)
-       c. **Launch review subagent** (only reached if currentCycle <= 2):
-          Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
-          - \`.os-stronger/review-guide.md\` — review rules and output format
-          - \`.os-stronger/requirement-summary.md\` — what to check against
-          - \`openspec/changes/<name>/tasks.md\` — what was done
-          - \`openspec/changes/<name>/design.md\` — design intent (if exists)
-          - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
-          - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
-          If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality. After this, the change will be archived regardless."
-       d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
-          1. Is it actually TRUE? (use your knowledge of the codebase)
-          2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
-          Only create fix tasks for findings that are BOTH true AND worth immediate fix.
-       e. **Create fix tasks**: In \`tasks.md\`, add new tasks for accepted findings:
-          \`- [ ] Review N Fix - <brief description>\`
-          Where N is \`currentCycle\`.
-          Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
-       f. **Archive or continue** (uses same currentCycle from step b):
-          - If NO findings were worth fixing: suggest archive immediately.
-          - If \`currentCycle === 2\`: fix the Review 2 tasks, then when all complete, the circuit breaker in step b will fire — suggest archive. Do NOT manually trigger Review 3.
-          - If \`currentCycle === 1\`: fix the Review 1 tasks, then when all complete, the review workflow will trigger again for Review 2.
+   **os-stronger review workflow** — triggered when the current task is a Review task (e.g. "Review: 按照...启动 Review N...") OR when \`state: "all_done"\` is reached without a Review task having run yet.
 
-   **IMPORTANT — re-check state after completing all tasks**: When you mark the last task as \`[x]\`, you MUST re-run step 3 (\`openspec instructions apply --change "<name>" --json\`) to get the updated \`state\`. Only then proceed to the \`state: "all_done"\` branch above. Do NOT skip this re-check — the review workflow depends on it.
+   **When you encounter a Review task** (the task description contains "Review" and "启动 Review"):
+     0. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you). If it does NOT exist, skip review and mark this task \`[x]\`.
+     a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
+     b. **Determine review cycle** (single source of truth for cycle number):
+        - Scan \`tasks.md\` for task lines matching \`Review N Fix -\`.
+        - Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
+        - If no completed review markers exist: \`currentCycle = 1\`.
+        - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
+        - **Circuit breaker**: If \`lastCompleted >= 2\` (Review 2 already fully completed): do NOT launch any subagent. Mark the Review task \`[x]\` and suggest archive. The 2-cycle limit is hard.
+     c. **Launch review subagent** (only reached if currentCycle <= 2):
+        Use the built-in subagent mechanism. Tell the subagent to read these files (pass PATHS, not contents):
+        - \`.os-stronger/review-guide.md\` — review rules and output format
+        - \`.os-stronger/requirement-summary.md\` — what to check against
+        - \`openspec/changes/<name>/tasks.md\` — what was done
+        - \`openspec/changes/<name>/design.md\` — design intent (if exists)
+        - \`openspec/changes/<name>/proposal.md\` — original requirements (if exists)
+        - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
+        If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality. After this, the change will be archived regardless."
+     d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
+        1. Is it actually TRUE? (use your knowledge of the codebase)
+        2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
+        Only create fix tasks for findings that are BOTH true AND worth immediate fix.
+     e. **Create fix tasks**: In \`tasks.md\`, add new tasks for accepted findings:
+        \`- [ ] Review N Fix - <brief description>\`
+        Where N is \`currentCycle\`.
+        Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
+     f. **After review** (uses same currentCycle from step b):
+        - If NO findings were worth fixing: mark the Review task \`[x]\`, suggest archive.
+        - If \`currentCycle === 1\` and there are fix tasks: mark the Review task \`[x]\`, then do the fix tasks. After all fix tasks are done, add a new task: \`- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 2 子 agent 对本次 change 做独立审查\`. This becomes the next Review trigger.
+        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker fires — suggest archive. Do NOT add a Review 3 task.
+
+   **Fallback: If \`state: "all_done"\` is reached but no Review task was ever executed** (e.g. the Review task was missing from tasks.md):
+     - Check if \`.os-stronger/review-guide.md\` exists. If NOT: congratulate, suggest archive (unchanged behavior).
+     - If it EXISTS: run the review workflow above (steps a-f) with \`currentCycle = 1\`, then decide archive or add fix tasks + Review 2 task as above.
 ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `
 ${PROPOSE_MARKER}
-**os-stronger review reminder**: If this project has os-stronger review enabled (check if \`.os-stronger/review-guide.md\` exists), consider adding a final note in the generated tasks.md: "After all tasks complete, the review workflow in openspec-apply-change will trigger automatically — no manual action needed."
+**os-stronger review reminder**: This project has os-stronger review enabled. When generating \`tasks.md\`, you MUST add the following as the **last task**:
+
+\`\`\`markdown
+- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 1 子 agent 对本次 change 做独立审查
+\`\`\`
+
+This task is not optional — it ensures the review workflow is triggered. The agent executing tasks will see this as the final task and follow the review workflow instructions in openspec-apply-change.
 ${PROPOSE_MARKER}`;
 
 module.exports = {
@@ -71,7 +78,8 @@ module.exports = {
         if (p.test(content)) { matched = p; break; }
       }
       if (!matched) return { patched: false, reason: 'pattern-not-found', content };
-      return { patched: true, content: content.replace(matched, REVIEW_WORKFLOW_BLOCK.trim()) };
+      // 在 all_done 行之前插入 review workflow(保留原行作为兜底)
+      return { patched: true, content: content.replace(matched, (m) => REVIEW_WORKFLOW_BLOCK.trim() + '\n   ' + m) };
     },
     'openspec-propose': (content) => {
       if (content.includes(PROPOSE_MARKER)) {

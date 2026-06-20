@@ -49,12 +49,13 @@ const PROPOSE_SAMPLE = `1. **If no clear input provided, ask what they want to b
 console.log('os-stronger patch 单元测试\n');
 
 // ─── review 增强 ───
-test('review: patchApplyChange 注入 review workflow', () => {
+test('review: patchApplyChange 注入 review workflow(在 all_done 行之前,保留原行)', () => {
   const result = reviewEnh.patches['openspec-apply-change'](APPLY_CHANGE_SAMPLE);
   assert.ok(result.patched, '应 patched=true');
   assert.ok(result.content.includes('OS-STRONGER-REVIEW'), '应含 marker');
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
-  assert.ok(!result.content.match(/all_done.*congratulate.*suggest archive/), '原文 all_done 行应被替换');
+  assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
+  assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
 });
 
 test('review: patchApplyChange 幂等(再 patch 返回 already-patched)', () => {
