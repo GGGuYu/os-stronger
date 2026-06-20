@@ -44,21 +44,24 @@ os-stronger init --restore                          # 撤销所有增强
 
 ### review — 全部 task 完成后起子 agent 审查
 
-当 `openspec-apply-change` 报告 `state: "all_done"`：
+**触发方式**：propose 时自动在 tasks.md 末尾加一个 Review task。agent 走到这个 task 时触发 review 工作流（不依赖长上下文记忆）。all_done 分支作兜底。
 
-1. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
-2. 写需求总结到 `.os-stronger/requirement-summary.md`
-3. 起子 agent，甩文件路径（review-guide + requirement-summary + tasks.md + git diff）
-4. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings
-5. 主 agent 独立判断每条：是否属实？是否值得现在立即修？
-6. 属实且值得修的 → 建 `Review N Fix - <desc>` task
-7. 修完触发下一轮 review，**最多 2 轮**，Review 2 修完直接 archive
+**工作流**：
 
-findings 不强制——主 agent 有最终决定权，任何档（含 CRITICAL）均可忽略。
+1. **STEP 0 熔断**（最高优先级）：扫 tasks.md，如果 Review 2 已完成 → 询问用户是否 archive，不启动子 agent
+2. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
+3. 写需求总结到 `.os-stronger/requirement-summary.md`
+4. 起子 agent，甩文件路径（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
+5. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings
+6. 主 agent 独立判断每条：是否属实？是否值得现在立即修？
+7. 属实且值得修的 → 建 `Review N Fix - <desc>` task
+8. Review 1 有 fix → 修完加 Review 2 task；Review 2 有 fix → 修完熔断；无 fix → 询问用户是否 archive
+
+findings 不强制——主 agent 有最终决定权，任何档（含 CRITICAL）均可忽略。**archive 决定权在用户**，agent 只能询问不能自动做。
 
 ### skill-align — propose 时主动询问用户要用哪些 skill
 
-**openspec-propose 侧**（写文档前）：
+**openspec-propose 侧**（所有 artifact 生成后、show status 前）：
 1. 扫描项目可用 skills（`.*/skills/*/SKILL.md`）
 2. 根据需求推荐相关 skill，用 AskUserQuestion 让用户多选
 3. 用户选的 = must-use（agent 实现时必须读且主动用），没选的 = optional

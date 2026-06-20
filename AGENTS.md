@@ -194,19 +194,25 @@ module.exports = {
 
 ### review 增强
 
-**patch 位置**(分层降级):
-- `openspec-apply-change`: L1 整句 `all_done: congratulate, suggest archive` → L2 含 `state: "all_done"` 的行 → L3 含 state 且含 all_done 的行,替换为 review workflow。**末尾追加 re-check state 指令**(标完所有 task 后必须重跑 `openspec instructions apply` 拿新 state,否则 review 不触发)
-- `openspec-propose`: 末尾追加 review 提醒
+**触发方式**(两层):
+1. **主触发**:propose patch 要求 tasks.md 末尾加 `- [ ] Review: 按 apply skill 指导启动 Review 1`。agent 走到这个 task 时 CLI 直接推到面前,不依赖长上下文记忆。
+2. **兜底**:all_done 分支保留,但仅在"本轮从未做过 review"(tasks.md 无 `[x]` 的 Review task)时触发。做过就跳过,不重复。
 
-**注入的 review workflow**(7 步 + re-check):
-1. 检查 `.os-stronger/review-guide.md` 存在性(不读内容)
-2. 写需求总结到 `.os-stronger/requirement-summary.md`
-3. 起 review 子 agent(甩路径:review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD)
-4. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出
-5. 主 agent 评估:是否属实?是否值得立即修?
-6. 属实且值得修 → 建 `Review N Fix - <desc>` task
-7. 修完触发下一轮,最多 2 轮,Review 2 修完 archive
-8. **re-check state**:标完最后一个 task 后必须重跑状态检查(补偿 OpenSpec 不保证重跑的缺陷)
+**patch 位置**(分层降级):
+- `openspec-apply-change`: L1 整句 → L2 含 `state: "all_done"` 的行 → L3 含 state+all_done 的行,在 all_done 行**之前插入**(保留原行作兜底)
+- `openspec-propose`: 末尾追加,要求 tasks.md 末尾加 Review task
+
+**注入的 review workflow**(STEP 0 熔断优先 + 0a-f):
+- **STEP 0 — 熔断(最高优先级,任何其他逻辑之前)**:扫 tasks.md 找 `lastCompleted`(最高全完成的 Review N)。`lastCompleted >= 2` → STOP,不启动子 agent,标 `[x]`,**询问用户**是否 archive。硬上限,无例外。
+- 0a. 检查 `.os-stronger/review-guide.md` 存在性(不读内容)
+- a. 写需求总结到 `.os-stronger/requirement-summary.md`
+- b. 确定当前 cycle(此时已知 < 2)
+- c. 起 review 子 agent(甩路径:review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD)
+- d. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出
+- e. 主 agent 评估:是否属实?是否值得立即修?
+- f. 属实且值得修 → 建 `Review N Fix` task;Review 1 有 fix → 加 Review 2 task;Review 2 有 fix → 熔断;无 fix → **询问用户**是否 archive
+
+**archive 规则**:agent 不能自动 archive,只能**询问用户**。所有场景(熔断/review 通过/兜底)都是 ask user。
 
 **支撑文件**:
 - `.os-stronger/review-guide.md` — 子 agent 审查规则(模板,init 时拷贝)
@@ -314,6 +320,9 @@ patches: {
 | 加新的 patch 注入点 | ✅ | 在增强的 patches 对象里加新 key |
 | 改 patch 正则匹配 | ✅(谨慎) | OpenSpec 更新文本时需要同步调整。遵循分层降级(决策 7) |
 | 去掉降级链只留精确匹配 | ❌ | 违背决策 7。OpenSpec 改措辞就断 |
+| 让 agent 自动 archive | ❌ | archive 决定权在用户。agent 只能询问,不能自动做 |
+| 去掉 STEP 0 熔断优先级 | ❌ | 熔断必须在任何其他逻辑之前,防无限循环 |
+| 去掉 Review task 主触发,只靠 all_done | ❌ | all_done 依赖长上下文记忆,不可靠。Review task 是主触发 |
 
 ---
 
