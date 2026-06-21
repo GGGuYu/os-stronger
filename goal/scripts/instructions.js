@@ -152,6 +152,22 @@ Propose the following change:
    \`\`\`
    **Task ordering**: If the \`review\` enhancement is enabled (openspec-propose skill was patched to add a Review task), the Review task comes BEFORE the archive task. The archive task is always the absolute last task. Order: implementation tasks → Review task (if present) → archive task.
 4. After proposing, report back.
+
+### ⚠️ Boundary: Propose Only
+
+You are a PROPOSE sub-agent. Your job is **done** after creating proposal.md, design.md, specs/, and tasks.md. 
+
+**Do NOT:**
+- Do NOT start implementing tasks (apply). That is a separate sub-agent's job.
+- Do NOT spawn your own sub-agent to apply.
+- Do NOT run \`openspec apply-change\` or \`openspec archive\`.
+- Do NOT write any implementation code.
+
+**DO:**
+- Create the planning artifacts (proposal, design, specs, tasks).
+- Add the goal archive task as the last task in tasks.md.
+- Report back to the orchestrator: "Propose complete for change <id>."
+- Stop. The orchestrator will dispatch a fresh sub-agent for apply.
 `;
 
   // test change 特殊提示
@@ -268,6 +284,23 @@ ${ARCHIVE_MANDATORY_NOTE}
 
 Focus on THIS change. The orchestrator handles the big picture.
 But read completed changes' artifacts for context when needed.
+
+### ⚠️ Boundary: Apply Only
+
+You are an APPLY sub-agent. Your job is to implement the tasks in tasks.md for THIS change only. 
+
+**Do NOT:**
+- Do NOT propose the next change. The orchestrator decides what's next.
+- Do NOT spawn your own sub-agent to propose or apply.
+- Do NOT start working on a different change.
+- Do NOT run \`os-stronger goal instructions\` — that is the orchestrator's job.
+
+**DO:**
+- Implement all tasks in tasks.md for THIS change.
+- Run tests.
+- Archive (openspec archive → os-stronger goal change archive).
+- Report back to the orchestrator: "Apply complete for change <id>." or "Test failed: <summary>".
+- Stop. The orchestrator will dispatch the next sub-agent.
 `;
 
   if (completedArtifacts.length > 0) {

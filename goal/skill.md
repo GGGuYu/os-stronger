@@ -56,7 +56,7 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 
 1. **Align with user**: Understand the goal. Use AskUserQuestion if needed.
 
-2. **Explore scope**: Read and follow the `openspec-explore` skill in your project's skills directory (e.g., `.claude/skills/openspec-explore/SKILL.md`, `.codex/skills/openspec-explore/SKILL.md`, etc.) to deeply understand the domain and codebase before decomposing. This ensures change boundaries are well-informed.
+2. **Explore scope**: Read and follow the `openspec-explore` skill in your project's skills directory (e.g., `.claude/skills/openspec-explore/SKILL.md`, `.codex/skills/openspec-explore/SKILL.md`, etc.) to deeply understand the domain and codebase before decomposing. This ensures change boundaries are well-informed. **Important: use explore only as a thinking tool to understand the domain — do NOT follow explore's suggestions to create changes or proposals. After exploring, return to the goal workflow (step 3 below).**
 
 3. **Create the goal**:
    ```bash
