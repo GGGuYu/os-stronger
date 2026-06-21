@@ -203,7 +203,7 @@ If your session was interrupted (user closed IDE, context was cleared, etc.):
 ## Guardrails
 
 - **Always use sub-agents** for propose and apply — keep your orchestrator context thin
-- **STRICTLY SERIAL — one sub-agent at a time** — NEVER dispatch a sub-agent and run CLI commands in the same response. NEVER have two sub-agents running simultaneously. Before dispatching a sub-agent, check if there are any active sub-agents from previous steps. If yes, wait for them to complete (or close them) before dispatching. The flow is always: check no active sub-agents → dispatch ONE sub-agent → wait for it to return → run CLI command → run instructions → repeat.
+- **STRICTLY SERIAL — one sub-agent at a time** — NEVER have two sub-agents running simultaneously. Before dispatching a sub-agent, check if there are any active sub-agents from previous steps. If yes, wait for them to complete (or close them) before dispatching. The flow is always: check no active sub-agents → dispatch ONE sub-agent → wait for it to return → run CLI command → run instructions → repeat.
 - **Never skip `os-stronger goal instructions`** between steps — it is your single source of truth
 - **Never manually edit state.json** — always go through CLI commands
 - **MUST auto-archive — no user confirmation needed** — in goal mode, when a change's tasks are all complete (and review passes if review enhancement is enabled), the agent MUST archive immediately via `os-stronger goal change archive`. Do NOT ask the user whether to archive. Do NOT pause for user confirmation. The only time the user is involved is: (1) during explore/goal definition, (2) when a circuit break fires, (3) when the goal is done. Everything in between is autonomous.

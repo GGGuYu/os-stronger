@@ -411,13 +411,6 @@ function archiveGoal(projectDir, goalName) {
     throw new Error(`Goal "${goalName}" 不存在`);
   }
 
-  // 更新状态为 archived
-  const state = loadState(projectDir, goalName);
-  if (state) {
-    state.status = 'archived';
-    saveState(projectDir, goalName, state);
-  }
-
   // 移动到 archive 目录
   const archiveDir = path.join(projectDir, GOALS_DIR, 'archive');
   ensureDir(archiveDir);
@@ -426,6 +419,16 @@ function archiveGoal(projectDir, goalName) {
     throw new Error(`归档目标已存在: ${destDir}`);
   }
   fs.renameSync(dir, destDir);
+
+  // 更新新位置的状态文件（先 rename 再改状态，防错误路径状态不一致）
+  const destStatePath = path.join(destDir, 'state.json');
+  if (fs.existsSync(destStatePath)) {
+    const state = JSON.parse(fs.readFileSync(destStatePath, 'utf-8'));
+    state.status = 'archived';
+    state.updatedAt = new Date().toISOString();
+    fs.writeFileSync(destStatePath, JSON.stringify(state, null, 2), 'utf-8');
+  }
+
   return true;
 }
 

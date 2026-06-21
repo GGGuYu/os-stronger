@@ -503,7 +503,7 @@ function getInstructions(projectDir, goalName) {
         },
         subagentPrompt: prompt,
         instruction: [
-          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
+          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
           `子 agent 会按照 openspec-propose skill 的工作流创建 proposal.md、design.md、tasks.md。`,
           `子 agent 返回后，运行:`,
           `  os-stronger goal change propose --goal ${state.goalName} --id ${nextChange.id}`,
@@ -539,6 +539,7 @@ function getInstructions(projectDir, goalName) {
         })),
         subagentPrompt: prompt,
         instruction: [
+          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。`,
           `起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
           `子 agent 会按照 openspec-apply-change skill 的工作流读取上下文、实现 tasks、跑测试，`,
           `然后按照 openspec-archive 惯例自主归档（调用 os-stronger goal change archive）。`,

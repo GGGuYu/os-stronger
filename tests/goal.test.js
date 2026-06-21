@@ -451,6 +451,67 @@ runTest('goal archive 归档已完成的 goal', () => {
   assert.ok(!goals.some(g => g.goalName === 'archive-me'), '归档的 goal 不应出现在活跃列表');
 });
 
+runTest('goal archive 归档不存在的 goal 抛错', () => {
+  assert.throws(
+    () => state.archiveGoal(tmpDir, 'never-existed'),
+    /不存在/,
+    '归档不存在的 goal 应抛错'
+  );
+});
+
+runTest('goal archive 归档目标目录已存在时抛错，且不破坏原 goal', () => {
+  state.createGoal(tmpDir, 'dup-archive', '重复归档');
+
+  // 手动创建冲突的归档目录
+  const conflictDir = path.join(tmpDir, state.GOALS_DIR, 'archive', 'goal_dup-archive');
+  fs.mkdirSync(conflictDir, { recursive: true });
+
+  assert.throws(
+    () => state.archiveGoal(tmpDir, 'dup-archive'),
+    /已存在/,
+    '归档目标已存在时应抛错'
+  );
+
+  // 原 goal 目录仍完整存在（抛错发生在 rename 前，goal 未被修改）
+  assert.ok(fs.existsSync(state.goalDir(tmpDir, 'dup-archive')), '原 goal 目录不应被删除');
+  const s = state.loadState(tmpDir, 'dup-archive');
+  assert.strictEqual(s.status, 'in-progress', '抛错后状态应未变');
+});
+
+runTest('goal archive 归档后新位置 state.json 的 status 为 archived', () => {
+  state.createGoal(tmpDir, 'verify-status', '验证归档状态');
+  state.addChange(tmpDir, 'verify-status', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'verify-status', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'verify-status', 'impl');
+  state.markArchived(tmpDir, 'verify-status', 'impl');
+  state.markProposed(tmpDir, 'verify-status', 'testchange_1');
+  state.markArchived(tmpDir, 'verify-status', 'testchange_1');
+
+  state.archiveGoal(tmpDir, 'verify-status');
+
+  // 验证新位置的 state.json 存在且 status='archived'
+  const archiveStatePath = path.join(tmpDir, state.GOALS_DIR, 'archive', 'goal_verify-status', 'state.json');
+  assert.ok(fs.existsSync(archiveStatePath), '归档后目标目录中应有 state.json');
+  const archivedState = JSON.parse(fs.readFileSync(archiveStatePath, 'utf-8'));
+  assert.strictEqual(archivedState.status, 'archived', '归档后 status 应为 archived');
+  assert.ok(archivedState.updatedAt, 'updatedAt 应已更新');
+});
+
+runTest('goal archive 允许归档未完成的 goal（不改状态，只是移目录）', () => {
+  state.createGoal(tmpDir, 'incomplete', '未完成 goal');
+  state.addChange(tmpDir, 'incomplete', { id: 'impl', title: '实现' });
+  // 注意：impl 还在 skeleton，没有 test change，goal 不完整
+
+  // archiveGoal 应成功（不检查完整性，只移目录）
+  state.archiveGoal(tmpDir, 'incomplete');
+  assert.ok(!fs.existsSync(state.goalDir(tmpDir, 'incomplete')), '原目录应已移走');
+
+  const archiveStatePath = path.join(tmpDir, state.GOALS_DIR, 'archive', 'goal_incomplete', 'state.json');
+  assert.ok(fs.existsSync(archiveStatePath));
+  const archivedState = JSON.parse(fs.readFileSync(archiveStatePath, 'utf-8'));
+  assert.strictEqual(archivedState.status, 'archived', '即使原状态是 in-progress，归档后也标记为 archived');
+});
+
 runTest('blockChange / unblockChange 通过 state.js 操作', () => {
   state.createGoal(tmpDir, 'block-test', 'block 测试');
   state.addChange(tmpDir, 'block-test', { id: 'impl', title: '实现' });
