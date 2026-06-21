@@ -69,7 +69,7 @@ AI 会：
 ├── openspec-goals/                        ← goal 增强创建（显式目录）
 │   └── goal_<name>/                       ← 一个 goal 一个文件夹
 │       ├── state.json                     ← 状态机（CLI 读写）
-│       └── goal.md                        ← 目标描述 + 验收标准
+│       └── goal.md                        ← 目标+架构+设计规范+测试维度+参考资料+验收标准（决策 13）
 │
 ├── .claude/skills/                        ← （或其他工具的 skills 目录）
 │   └── os-stronger-goal/
@@ -124,7 +124,7 @@ os-stronger goal list
 
 1. AI 跟随 `openspec-explore` skill 和你对齐目标
 2. 创建 goal：`os-stronger goal create --name <name> --description "..."`
-3. 写 goal.md（目标 + 验收标准）
+3. 写 goal.md（目标 + 宏观架构 + 设计规范 + 测试维度 + 参考资料 + 验收标准——这是设计意图 + 资料中心，fresh-context 子 agent 靠它拿到最初资料，见决策 13）
 4. 拆分成多个 change，最后一个必须是 test change
 5. 逐个注册：`os-stronger goal change add ...`
 6. 确认后进入 loop——此后全自动
@@ -152,7 +152,7 @@ CLI 的 `instructions --json` 返回的 `nextAction.instruction` 会明确告诉
 
 最后一个 change 是 test change，验证整个 goal 是否达标。test change 的 apply 子 agent 执行两类任务：
 
-**Task 1: 独立语义评估** — 在写任何测试代码之前，子 agent 以 fresh context 的独立视角，读 goal.md 验收标准 + 所有已完成 change 的产物，逐条判断是否满足。不满足直接返回失败，不写测试。
+**Task 1: 独立语义评估** — 在写任何测试代码之前，子 agent 以 fresh context 的独立视角，读 goal.md 全文（架构 / 设计规范 / 测试维度 / 参考资料 + 验收标准）+ 所有已完成 change 的产物，逐条判断是否满足。不满足直接返回失败，不写测试。
 
 **Task 2~N: 测试用例** — 语义评估通过后，写测试、跑测试。
 

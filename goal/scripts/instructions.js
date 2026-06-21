@@ -113,6 +113,7 @@ function buildProposePrompt(projectDir, state, change) {
 **Goal**: ${state.goalName}
 **Description**: ${state.goalDescription}
 **Goal Doc**: \`${goalDoc}\`
+**⚠️ 必须先读 goal.md 全文**：goal.md 不只是验收标准——它承载了目标 / 宏观架构 / 设计规范 / 测试维度 / 参考资料 / 验收标准。你是 fresh context，对话里用户给过主 agent 的资料（GitHub / 图片 / 网址 / 风格参考）只落盘在 goal.md 里，不会出现在你的上下文。只读验收标准会丢失设计意图和参考资料，导致目标偏移。开始任何工作前，完整读一遍 goal.md。
 
 ## All Changes in This Goal
 
@@ -173,15 +174,17 @@ You are a PROPOSE sub-agent. Your job is **done** after creating proposal.md, de
   // test change 特殊提示（含独立语义评估）
   if (change.type === 'test') {
     prompt += `
-## ⚠️ Test Change 提示
+## ⚠️ Test Change 提示 — 你是把关者，不是修复者
+
+**🚫 铁律：test change 只做评估 + 测试 + 报告，绝不修复产品代码。** 发现问题只报告给主 agent，由主 agent 派 fix change 去修。你在 propose 阶段写的 tasks.md 里，**不能有"修复产品代码"这类 task**——只有评估、测试、跑测试、archive。
 
 这是 test change（第 ${change.testCycle} 轮）。在 propose 之前：
-1. **必须读** goal doc: \`${goalDoc}\`（验收标准）
+1. **必须读** goal doc 全文：\`${goalDoc}\`（架构 / 设计规范 / 测试维度 / 参考资料 + 验收标准，不要只读验收标准）
 2. **必须读**所有已完成 change 的 design.md 和 specs
 
 ### tasks.md 结构要求（Test Change 专用）
 
-Test change 的 tasks.md 必须按以下顺序组织：
+Test change 的 tasks.md 必须按以下顺序组织，**全程不碰前序 change 的产品代码**：
 
 **Task 1: 独立语义评估（Independent Goal Evaluation）**
 - 这是 test change 的第一个 task，必须在所有测试用例之前
@@ -189,15 +192,17 @@ Test change 的 tasks.md 必须按以下顺序组织：
 - 评估内容：逐条对照 goal.md 的验收标准，从已完成 change 的产物（proposal/design/specs）中找证据，判断每条是否被满足
 - 评估结果：
   - 全部满足 → 标记 Task 1 完成，继续写测试
-  - 有未满足的 → 记录哪条未满足、为什么、建议怎么修，直接返回失败（不写后续测试）
+  - 有未满足的 → 记录哪条未满足、为什么、**建议**主 agent 怎么修（只是建议，不自己修），直接返回失败（不写后续测试，不改产品代码）
 
 **Task 2 ~ Task N-1: 测试用例**
 - 覆盖所有验收标准的测试
 - 重点关注 change 之间的接口和集成点
 - 这是 goal 级别的集成/验收测试，不是单元测试
+- 只写测试代码，**不改产品代码**
 
 **Task N: 运行全部测试 + Archive**
 - 跑全部测试，通过后执行 archive（openspec archive → os-stronger goal change archive）
+- 测试失败 → 报告失败，**不自己修**，让主 agent 派 fix change
 
 ### 为什么语义评估在前
 
@@ -263,6 +268,7 @@ function buildApplyPrompt(projectDir, state, change) {
 **Goal**: ${state.goalName}
 **Description**: ${state.goalDescription}
 **Goal Doc**: \`${goalDoc}\`
+**⚠️ 必须先读 goal.md 全文**：goal.md 不只是验收标准——它承载了目标 / 宏观架构 / 设计规范 / 测试维度 / 参考资料 / 验收标准。你是 fresh context，对话里用户给过主 agent 的资料（GitHub / 图片 / 网址 / 风格参考）只落盘在 goal.md 里，不会出现在你的上下文。只读验收标准会丢失设计意图和参考资料，导致目标偏移。开始任何工作前，完整读一遍 goal.md。
 
 ## All Changes in This Goal
 
@@ -339,9 +345,18 @@ ${completedArtifacts.map(a => `- **${a.id}** (${a.title})\n  - proposal: \`${a.p
 
   if (change.type === 'test') {
     prompt += `
-## ⚠️ Test Change Apply 提示
+## ⚠️ Test Change Apply 提示 — 你是把关者，不是修复者
 
-这是 test change（第 ${change.testCycle} 轮）。你的 tasks.md 包含两类任务：语义评估 + 测试用例。
+**🚫 铁律（最高优先级，凌驾于一切之上）：你只评估和测试，绝不修复产品代码。**
+
+这是 test change（第 ${change.testCycle} 轮）。你的职责是**把关**——判断 goal 是否达标、测试是否通过。你是 fresh context 的独立审查者，前面所有 change 的实现你都没参与。
+
+- **发现任何问题（语义评估不通过 / 测试失败）→ 只报告，不修。** 把问题找出来、写清失败报告（哪条未满足/哪个测试挂了/建议怎么修），然后返回失败给主 agent。
+- **主 agent 才能创建 fix change**，由专门的 fix change 子 agent 去修。你跳过这一步直接修，会破坏 fix 流程、绕过熔断、还可能引入你没察觉的新问题（你 fresh context，对全局理解有限）。
+- **"我顺手改两行应该没事"是错的。** 哪怕只改一行、哪怕看起来很简单的修复，都不允许。你的任务列表里没有"修代码"这一项——OpenSpec apply-change skill 默认会让你"实现任务"，但 test change 的任务是**评估 + 测试 + 报告**，不是实现。
+- 你能写的只有：测试代码本身、tasks.md 的勾选标记、失败报告。**不要碰任何前序 change 产出的产品代码、specs、design。**
+
+你的 tasks.md 包含两类任务：语义评估 + 测试用例。
 
 ### Task 1: 独立语义评估
 
@@ -350,32 +365,34 @@ ${completedArtifacts.map(a => `- **${a.id}** (${a.title})\n  - proposal: \`${a.p
 前面所有 change 的实现你都没有参与（你是 fresh context）。在写任何测试代码之前，先以纯粹的外部审查视角评估 goal 是否达标。
 
 步骤：
-1. 读 goal.md 的每一条验收标准
+1. 读 goal.md 全文（目标 / 宏观架构 / 设计规范 / 测试维度 / 参考资料 / 验收标准），先理解整体设计意图
 2. 对每条验收标准，按下述层次找证据（由弱到强）：
    - specs/ 是否覆盖该标准
    - tasks.md 是否标 \`[x]\`
    - 必要时直接读对应源码，确认实现真实存在且与设计一致
-3. **不要因为"计划里写了"或"task 打了勾"就假设已满足**——产物/代码里要有具体证据
-4. 输出判断：
+3. 若某条验收标准依赖宏观架构或设计规范（如“模块 X 和 Y 解耦”“API 风格一致”），也从产物里确认这些规范是否被落实，不只看验收标准字面
+4. **不要因为"计划里写了"或"task 打了勾"就假设已满足**——产物/代码里要有具体证据
+5. 输出判断：
    - **全部满足** → 标记 Task 1 \`[x]\`，继续 Task 2 开始写测试
-   - **有未满足的** → 记录哪条未满足、为什么、建议怎么修。这是 test change 的失败报告，主 agent 会用它来创建 fix change。**不需要写后续测试**——直接返回失败。
+   - **有未满足的** → 记录哪条未满足、为什么、建议主 agent 怎么修（**只是建议，不要你自己修**）。这是 test change 的失败报告，主 agent 会用它来创建 fix change。**不需要写后续测试，不要改任何产品代码**——直接返回失败。
 
 语义评估不通过时的失败报告格式：
 \`\`\`
 语义评估不通过：
-- [验收标准 X]: 未满足，原因：...，建议：...
-- [验收标准 Y]: 未满足，原因：...，建议：...
+- [验收标准 X]: 未满足，原因：...，建议修复方向：...（由主 agent 派 fix change 修，不是你修）
+- [验收标准 Y]: 未满足，原因：...，建议修复方向：...（由主 agent 派 fix change 修，不是你修）
 \`\`\`
 
 ### Task 2 ~ Task N-1: 测试用例
 
-- 语义评估通过后，按照 tasks.md 中的测试用例逐个实现并运行
-- 如果测试失败，**不要自己修代码**，报告失败信息给主 agent
+- 语义评估通过后，按照 tasks.md 中的测试用例逐个**写测试代码**并运行
+- 你只写测试代码，**不碰产品代码**。测试挂了说明产品代码有问题，但修产品代码不是你的活——那是主 agent 派 fix change 去修的
+- 如果测试失败，**🚫 不要自己改产品代码去让测试过**。报告失败信息给主 agent，让它创建 fix change。"改两行让测试过"是最坏的做法——你 fresh context，不知道这个改动会不会破坏别的地方，而且这绕过了整个 fix→熔断流程
 
 测试失败时的失败报告格式：
 \`\`\`
 测试失败：
-- [测试名]: 错误信息：...，涉及模块：...
+- [测试名]: 错误信息：...，涉及模块：...，建议修复方向：...（由主 agent 派 fix change 修，不是你修）
 \`\`\`
 
 ### Task N: 运行全部测试 + Archive

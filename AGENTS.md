@@ -332,6 +332,8 @@ patches: {
 
 9. **uninstall 顺序**:`--uninstall` 会先卸载全局 CLI，用户之后无法跑 `--restore`。正确顺序是先在各项目 restore 再卸载。CLI 提示已说明但无法强制。
 
+10. **goal.md 章节填不全**:goal.md 现在是设计意图 + 资料中心(目标/架构/设计规范/测试维度/资料/验收标准六段,见 goal/AGENTS.md 决策 13)。模板有 HTML 注释引导每段不填的代价,但不强制填。章节填不全会让 fresh-context 子 agent 缺视角或拿不到用户给过的资料,导致目标偏移。靠主 agent 在 Phase 0 主动收集资料 + 提示子 agent 读 goal.md 全文缓解。
+
 ---
 
 ## 八、维护红线速查

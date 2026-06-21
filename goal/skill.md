@@ -59,35 +59,45 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 
 2. **Explore scope**: Read and follow the `openspec-explore` skill in your project's skills directory (e.g., `.claude/skills/openspec-explore/SKILL.md`, `.codex/skills/openspec-explore/SKILL.md`, etc.) to deeply understand the domain and codebase before decomposing. This ensures change boundaries are well-informed. **Important: use explore only as a thinking tool to understand the domain — do NOT follow explore's suggestions to create changes or proposals. After exploring, return to the goal workflow (step 3 below).**
 
-3. **Create the goal**:
+3. **Collect reference materials**: Before writing goal.md, proactively ask the user (via AskUserQuestion) whether they have reference materials — GitHub projects, URLs, images, design mockups, style references, API docs, etc. Anything the user mentions in conversation that the fresh-context sub-agents will need. For each item, record: what it is + why it's relevant + link or local path. These go into goal.md's `## 参考资料` section in step 5. **Why this matters**: sub-agents are fresh context — materials the user gave you in conversation do NOT appear in their context unless written into goal.md. Skipping this loses the design intent and references, and sub-agents may drift from the goal. If the user has none, leave the section as a placeholder.
+
+4. **Create the goal**:
    ```bash
    os-stronger goal create --name <goal-name> --description "..."
    ```
 
-4. **Write goal.md**: Edit `openspec-goals/goal_<name>/goal.md` — fill in:
-   - **目标**: detailed goal description
-   - **验收标准**: checkable acceptance criteria (every item should be testable)
+5. **Write goal.md**: Edit `openspec-goals/goal_<name>/goal.md` — this is the **design intent + reference center** that every fresh-context sub-agent reads. Fill in ALL sections (the template has placeholder guidance in HTML comments):
+   - **目标**: detailed goal description + motivation (why this goal exists)
+   - **宏观架构**: module breakdown / component relationships / tech-stack choices. May include architecture diagram links. This is the sub-agent's "global map" — without it they see trees but not the forest.
+   - **设计规范**: visual style / colors / interaction norms / API style / naming conventions. Any style references the user gave in conversation MUST land here, or fresh-context sub-agents won't have them.
+   - **测试维度**: what dimensions goal-level acceptance must cover (integration points / boundaries / performance / compat / error handling) — macro dimensions, not a unit-test list.
+   - **参考资料**: the materials collected in step 3 (what + why + link/path). Only links/paths — never paste the content itself (sub-agents read it themselves; this honors decision 8: pass paths not content).
+   - **验收标准**: checkable acceptance criteria (every item should be testable). This is what the test change's semantic evaluation checks against item by item — be specific and judgeable.
 
-5. **Decompose into changes**: Think about what changes are needed.
-   - Break the goal into sequential, reasonably-sized work units
+   Write it in detail but keep it macro — this is design intent, not implementation detail. The richer and more accurate goal.md is, the less sub-agents drift.
+
+6. **Assess complexity & plan change decomposition**: Before registering changes, write a brief complexity assessment in goal.md's `## 宏观架构` section — for each planned change: its scope, dependencies, estimated effort (S/M/L), and why this granularity. Guidance: especially complex or tightly-coupled parts can be split into multiple changes; don't pack too much into one change, and don't split so fine you lose coherence. This is only a decomposition reference — final granularity is your call. **No new state fields, no CLI parameters — this is just a thinking framework written into goal.md.**
+
+7. **Decompose into changes**: Think about what changes are needed.
+   - Break the goal into sequential, reasonably-sized work units (informed by the complexity assessment in step 6)
    - **Order matters**: changes are executed in the order you register them (serial, one at a time). Register them in execution order — foundational changes first, then dependent changes, and test change last.
    - **The LAST change must be a test change** (`--type test`)
    - The test change validates the goal against acceptance criteria in goal.md
    - Minimum 2 changes (at least 1 implementation + 1 test)
 
-6. **Register each change** in execution order:
+8. **Register each change** in execution order:
    ```bash
    os-stronger goal change add --goal <goal-name> --id <id> --title "..." --type normal
    # ... for each implementation change ...
    os-stronger goal change add --goal <goal-name> --id testchange_1 --title "Goal 级测试" --type test
    ```
 
-7. **Show the change list to user for confirmation.**
+9. **Show the change list to user for confirmation.**
 
-8. **Enter the loop**:
-   ```bash
-   os-stronger goal instructions --goal <goal-name> --json
-   ```
+10. **Enter the loop**:
+    ```bash
+    os-stronger goal instructions --goal <goal-name> --json
+    ```
 
 ---
 

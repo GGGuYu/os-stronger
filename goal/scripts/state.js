@@ -90,8 +90,48 @@ function createGoal(projectDir, goalName, description, options = {}) {
 
   saveState(projectDir, goalName, state);
 
-  // 创建空的 goal.md 模板
-  const goalMd = `# Goal: ${goalName}\n\n## 目标\n\n${description}\n\n## 验收标准\n\n<!-- 在此列出可验证的验收标准 -->\n- [ ] \n`;
+  // 创建 goal.md 模板(决策 13:goal.md 是设计意图 + 资料中心,子 agent 间上下文共享靠它 + 前序产物)
+  const goalMd = `# Goal: ${goalName}
+
+## 目标
+
+${description}
+
+<!-- 动机:为什么做这个 goal?解决了什么问题?
+     不写动机,子 agent 不知道"为什么",容易做出偏离初衷的实现。 -->
+
+## 宏观架构
+
+<!-- 模块划分 / 组件关系 / 技术栈选型要点。可附架构图链接。
+     这是给 fresh-context 子 agent 的"全局地图"——不写,子 agent 只见树木不见森林。
+
+     复杂度评估也写在这一节:列出每个 change 的范围、依赖、预估工作量(S/M/L)、为什么定这个粒度。
+     特别复杂或耦合度高的部分可以拆成多个 change;不要一个 change 装太多,也不要拆得过细。
+     这只是拆分参考,最终粒度由主 agent 判断。 -->
+
+## 设计规范
+
+<!-- 视觉风格 / 颜色 / 交互规范 / API 风格 / 命名约定。
+     用户在对话里给过的风格参考(图片/网址)要落到这里,否则 fresh-context 子 agent 拿不到。 -->
+
+## 测试维度
+
+<!-- goal 级验收要覆盖哪些维度(集成点 / 边界 / 性能 / 兼容 / 错误处理)。
+     这是宏观维度,不是单个测试用例清单——用例由 test change 自己写。 -->
+
+## 参考资料
+
+<!-- 用户提供的参考资料:GitHub 项目 / 网址 / 图片 / 设计稿。
+     每条写清:是什么 + 为什么参考 + 链接或本地路径。
+     只放链接/路径,不要把资料内容本身粘进来(子 agent 自己去读,守决策 8 传路径不传内容)。 -->
+
+## 验收标准
+
+<!-- 可验证的验收标准。每条都应该是可测试的(能明确判断"满足 / 未满足")。
+     这是 test change 语义评估逐条对照的依据,要写得具体、可判断。 -->
+
+- [ ] 
+`;
   fs.writeFileSync(goalDocPath(projectDir, goalName), goalMd, 'utf8');
 
   return state;
