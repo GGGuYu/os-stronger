@@ -11,7 +11,7 @@ const GOALS_DIR = 'openspec-goals';
 const CHANGE_TYPES = ['normal', 'test', 'fix'];
 const CHANGE_PHASES = ['skeleton', 'proposed', 'archived'];
 
-const DEFAULT_MAX_FIX_CYCLES = 2;
+const DEFAULT_MAX_FIX_CYCLES = 3;
 
 // ─── 工具函数 ───
 
@@ -436,6 +436,7 @@ function archiveGoal(projectDir, goalName) {
 
 module.exports = {
   GOALS_DIR,
+  DEFAULT_MAX_FIX_CYCLES,
   goalDir,
   statePath,
   goalDocPath,

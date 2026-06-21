@@ -62,7 +62,7 @@ function cmdCreate(args) {
   const name = getArg(args, '--name');
   const description = getArg(args, '--description') || '';
   const json = hasFlag(args, '--json');
-  const maxFixCycles = parseInt(getArg(args, '--max-fix-cycles') || '2', 10);
+  const maxFixCycles = parseInt(getArg(args, '--max-fix-cycles') || String(state.DEFAULT_MAX_FIX_CYCLES), 10);
 
   if (!name) { err('--name 必填'); return 1; }
 

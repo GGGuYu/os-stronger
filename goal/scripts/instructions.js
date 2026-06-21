@@ -170,7 +170,7 @@ You are a PROPOSE sub-agent. Your job is **done** after creating proposal.md, de
 - Stop. The orchestrator will dispatch a fresh sub-agent for apply.
 `;
 
-  // test change 特殊提示
+  // test change 特殊提示（含独立语义评估）
   if (change.type === 'test') {
     prompt += `
 ## ⚠️ Test Change 提示
@@ -178,13 +178,32 @@ You are a PROPOSE sub-agent. Your job is **done** after creating proposal.md, de
 这是 test change（第 ${change.testCycle} 轮）。在 propose 之前：
 1. **必须读** goal doc: \`${goalDoc}\`（验收标准）
 2. **必须读**所有已完成 change 的 design.md 和 specs
-3. 你的 tasks.md 应该包含覆盖所有验收标准的测试用例
-4. 最后一个 task 是跑全部测试 + 调用 CLI 归档
 
-测试范围：
-- 验收标准中的每一项都要有测试
+### tasks.md 结构要求（Test Change 专用）
+
+Test change 的 tasks.md 必须按以下顺序组织：
+
+**Task 1: 独立语义评估（Independent Goal Evaluation）**
+- 这是 test change 的第一个 task，必须在所有测试用例之前
+- 评估者在此时还没有写任何测试代码，是纯粹的外部审查视角
+- 评估内容：逐条对照 goal.md 的验收标准，从已完成 change 的产物（proposal/design/specs）中找证据，判断每条是否被满足
+- 评估结果：
+  - 全部满足 → 标记 Task 1 完成，继续写测试
+  - 有未满足的 → 记录哪条未满足、为什么、建议怎么修，直接返回失败（不写后续测试）
+
+**Task 2 ~ Task N-1: 测试用例**
+- 覆盖所有验收标准的测试
 - 重点关注 change 之间的接口和集成点
 - 这是 goal 级别的集成/验收测试，不是单元测试
+
+**Task N: 运行全部测试 + Archive**
+- 跑全部测试，通过后执行 archive（openspec archive → os-stronger goal change archive）
+
+### 为什么语义评估在前
+
+- 评估时子 agent 还没写测试代码，视角更独立（不被"我写的测试都过了"bias）
+- 如果方向性错误（验收标准没满足），不需要浪费 token 写无意义的测试
+- 评估通过后再写测试，测试用例可以基于评估时对产物的理解
 `;
 
     if (change.testCycle > 1 && change.basedOn) {
@@ -195,9 +214,11 @@ You are a PROPOSE sub-agent. Your job is **done** after creating proposal.md, de
 上一轮 ${change.basedOn} 失败。已通过以下 fix change 修复：
 ${fixChanges.map(f => `- ${f.id}: ${f.title}`).join('\n') || '（无）'}
 
-你的测试应该：
-1. 覆盖 ${change.basedOn} 的所有测试用例（读其 tasks.md）
-2. 针对上述 fix 内容增加回归测试
+上一轮失败信息：${state.fixFlow.lastFixResult || 'N/A'}
+
+你的 test change 应该：
+1. 语义评估：重新检查上一轮未满足的验收标准是否已被 fix change 解决
+2. 测试用例：覆盖 ${change.basedOn} 的所有测试用例（读其 tasks.md），针对 fix 内容增加回归测试
 3. 重新跑全部测试
 `;
     }
@@ -320,11 +341,55 @@ ${completedArtifacts.map(a => `- **${a.id}** (${a.title})\n  - proposal: \`${a.p
     prompt += `
 ## ⚠️ Test Change Apply 提示
 
-这是 test change（第 ${change.testCycle} 轮）。
-- 按照 tasks.md 中的测试用例逐个实现并运行
+这是 test change（第 ${change.testCycle} 轮）。你的 tasks.md 包含两类任务：语义评估 + 测试用例。
+
+### Task 1: 独立语义评估
+
+**⚠️ 角色切换：你现在是独立评估者，不是实现者。**
+
+前面所有 change 的实现你都没有参与（你是 fresh context）。在写任何测试代码之前，先以纯粹的外部审查视角评估 goal 是否达标。
+
+步骤：
+1. 读 goal.md 的每一条验收标准
+2. 对每条验收标准，按下述层次找证据（由弱到强）：
+   - specs/ 是否覆盖该标准
+   - tasks.md 是否标 \`[x]\`
+   - 必要时直接读对应源码，确认实现真实存在且与设计一致
+3. **不要因为"计划里写了"或"task 打了勾"就假设已满足**——产物/代码里要有具体证据
+4. 输出判断：
+   - **全部满足** → 标记 Task 1 \`[x]\`，继续 Task 2 开始写测试
+   - **有未满足的** → 记录哪条未满足、为什么、建议怎么修。这是 test change 的失败报告，主 agent 会用它来创建 fix change。**不需要写后续测试**——直接返回失败。
+
+语义评估不通过时的失败报告格式：
+\`\`\`
+语义评估不通过：
+- [验收标准 X]: 未满足，原因：...，建议：...
+- [验收标准 Y]: 未满足，原因：...，建议：...
+\`\`\`
+
+### Task 2 ~ Task N-1: 测试用例
+
+- 语义评估通过后，按照 tasks.md 中的测试用例逐个实现并运行
 - 如果测试失败，**不要自己修代码**，报告失败信息给主 agent
-- 失败报告格式：列出失败的测试名 + 错误信息 + 涉及的模块
-- 主 agent 会启动 fix 流程
+
+测试失败时的失败报告格式：
+\`\`\`
+测试失败：
+- [测试名]: 错误信息：...，涉及模块：...
+\`\`\`
+
+### Task N: 运行全部测试 + Archive
+
+- 测试全部通过后，执行 archive（openspec archive → os-stronger goal change archive）
+
+### 失败报告总结
+
+无论失败来自语义评估还是测试，返回给主 agent 的报告都应包含：
+- 失败类型：语义评估不通过 / 测试失败
+- 具体信息：未满足的标准或失败的测试
+- 建议修复方向
+
+主 agent 会用这个报告调用 \`os-stronger goal test-failed\`，进入 fix 流程。
 `;
   }
 
@@ -422,7 +487,9 @@ function getInstructions(projectDir, goalName) {
             `2. 所有已完成 change 的路径（从 contextForSubagent.completedChangeArtifacts 获取）`,
             `3. 失败的 test change 的 tasks.md 路径`,
             `4. 失败摘要: ${state.fixFlow.lastFixResult || 'N/A'}`,
-            `分析子 agent 输出：需要修哪些模块、每个模块修什么。`,
+            `分析子 agent 输出（根据失败类型）：`,
+            `- 语义评估不通过：哪条验收标准未满足、缺什么实现/要补什么 change`,
+            `- 测试失败：哪个模块有 bug、每个模块修什么`,
             `然后注册 fix change（必须 --type fix）：`,
             `  os-stronger goal change add --goal ${state.goalName} --id fixchange_${state.fixFlow.cycle}-<module> --title "..." --type fix`,
             `注册后重新运行 os-stronger goal instructions --goal ${state.goalName} --json。`,
@@ -545,8 +612,9 @@ function getInstructions(projectDir, goalName) {
           `然后按照 openspec-archive 惯例自主归档（调用 os-stronger goal change archive）。`,
           `子 agent 返回后，重新运行 os-stronger goal instructions --goal ${state.goalName} --json 获取下一步。`,
           `注意：goal 模式下 archive 是自主的、强制的——子 agent 完成任务后必须直接 archive，不等用户确认。`,
-          `如果子 agent 报告测试失败（test change），运行:`,
+          `如果子 agent 报告失败（语义评估不通过 或 测试失败），运行:`,
           `  os-stronger goal test-failed --goal ${state.goalName} --test-change ${nextChange.id} --summary "失败摘要"`,
+          `摘要须含失败类型（语义评估不通过/测试失败）+ 具体信息 + 建议修复方向。`,
         ].join('\n'),
       },
     };

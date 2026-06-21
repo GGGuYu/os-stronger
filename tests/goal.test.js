@@ -558,4 +558,72 @@ runTest('completedChangeArtifacts fallback 到活跃目录', () => {
   assert.ok(implArt.designPath, '应 fallback 到活跃目录找到 design');
 });
 
+runTest('test change propose 提示词包含语义评估关键文案', () => {
+  state.createGoal(tmpDir, 'sem-test', '语义评估测试');
+  state.addChange(tmpDir, 'sem-test', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'sem-test', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'sem-test', 'impl');
+  state.markArchived(tmpDir, 'sem-test', 'impl');
+
+  const inst = getInstructions(tmpDir, 'sem-test');
+  assert.strictEqual(inst.nextAction.type, 'propose_next');
+  assert.strictEqual(inst.nextAction.changeToPropose.id, 'testchange_1');
+  const prompt = inst.nextAction.subagentPrompt;
+  assert.ok(prompt.includes('独立语义评估'), 'propose 提示词应包含"独立语义评估"');
+  assert.ok(prompt.includes('Task 1'), 'propose 提示词应包含 Task 1 结构');
+  assert.ok(prompt.includes('评估在前'), 'propose 提示词应说明评估在前的顺序');
+});
+
+runTest('test change apply 提示词包含角色切换 + 两种失败报告格式', () => {
+  state.createGoal(tmpDir, 'sem-apply', '语义评估 apply 测试');
+  state.addChange(tmpDir, 'sem-apply', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'sem-apply', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'sem-apply', 'impl');
+  state.markArchived(tmpDir, 'sem-apply', 'impl');
+  state.markProposed(tmpDir, 'sem-apply', 'testchange_1');
+
+  const inst = getInstructions(tmpDir, 'sem-apply');
+  assert.strictEqual(inst.nextAction.type, 'apply_next');
+  const prompt = inst.nextAction.subagentPrompt;
+  assert.ok(prompt.includes('角色切换'), 'apply 提示词应包含角色切换指令');
+  assert.ok(prompt.includes('独立评估者'), 'apply 提示词应包含"独立评估者"');
+  assert.ok(prompt.includes('语义评估不通过'), 'apply 提示词应包含语义评估失败报告格式');
+  assert.ok(prompt.includes('测试失败'), 'apply 提示词应包含测试失败报告格式');
+  // 证据层次：不应只限定为规划文档
+  assert.ok(prompt.includes('源码'), 'apply 提示词应引导读真实源码');
+});
+
+runTest('apply_next instruction 包含语义评估不通过', () => {
+  state.createGoal(tmpDir, 'sem-instr', '语义评估 instruction 测试');
+  state.addChange(tmpDir, 'sem-instr', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'sem-instr', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'sem-instr', 'impl');
+  state.markArchived(tmpDir, 'sem-instr', 'impl');
+  state.markProposed(tmpDir, 'sem-instr', 'testchange_1');
+
+  const inst = getInstructions(tmpDir, 'sem-instr');
+  assert.strictEqual(inst.nextAction.type, 'apply_next');
+  const instruction = inst.nextAction.instruction;
+  assert.ok(instruction.includes('语义评估不通过'), 'apply_next instruction 应提及语义评估不通过');
+  assert.ok(instruction.includes('测试失败'), 'apply_next instruction 应提及测试失败');
+  assert.ok(instruction.includes('失败类型'), 'apply_next instruction 应要求摘要含失败类型');
+});
+
+runTest('fix_analysis_needed instruction 按失败类型分叉', () => {
+  state.createGoal(tmpDir, 'sem-fix', '语义评估 fix 分叉测试');
+  state.addChange(tmpDir, 'sem-fix', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'sem-fix', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'sem-fix', 'impl');
+  state.markArchived(tmpDir, 'sem-fix', 'impl');
+  state.markProposed(tmpDir, 'sem-fix', 'testchange_1');
+  state.testFailed(tmpDir, 'sem-fix', 'testchange_1', '语义评估不通过：验收标准A未满足');
+
+  const inst = getInstructions(tmpDir, 'sem-fix');
+  assert.strictEqual(inst.nextAction.type, 'fix_analysis_needed');
+  const instruction = inst.nextAction.instruction;
+  assert.ok(instruction.includes('语义评估不通过'), 'fix_analysis instruction 应包含语义评估分叉');
+  assert.ok(instruction.includes('测试失败'), 'fix_analysis instruction 应包含测试失败分叉');
+  assert.ok(instruction.includes('缺什么实现'), 'fix_analysis instruction 应引导补缺失功能');
+});
+
 console.log('\n  goal 测试完成\n');

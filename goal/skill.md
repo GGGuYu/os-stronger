@@ -28,7 +28,7 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 | **propose** | The planning phase. A sub-agent reads the requirement, explores the codebase, and writes the plan. | `proposal.md` (why + what), `design.md` (how), `specs/` (requirements), `tasks.md` (checklist) |
 | **apply** | The implementation phase. A sub-agent reads the plan, writes code, and marks tasks complete. | Code changes + `[x]` marks in `tasks.md` |
 | **archive** | The completion phase. Merges specs into `openspec/specs/` (so future changes can reference them), moves the change to `archive/`. Two steps: `openspec archive` (merge specs) → `os-stronger goal change archive` (update goal state). | Specs merged, change folder moved to archive |
-| **test change** | A special change that validates the entire goal against acceptance criteria (not unit tests — goal-level integration/acceptance tests). | Test code + test results |
+| **test change** | A special change that validates the entire goal against acceptance criteria. It performs **semantic evaluation FIRST** (independent assessment of whether acceptance criteria are met, based on completed change artifacts — before writing any test code), then writes and runs goal-level integration/acceptance tests. | Evaluation results + test code + test results |
 | **fix change** | A change created after a test change fails. Surgical fix, not refactor. Goes through normal propose → apply → archive. | Bug fix code |
 
 **Your role**: You decide WHAT change to do next (via CLI). Sub-agents decide HOW to do it (via OpenSpec skills). You never write proposal.md or code yourself.
@@ -150,18 +150,21 @@ A test change failed. You need to analyze the failure and create fix changes.
 
 ### Test change apply fails
 
-When a test change sub-agent reports test failures:
+When a test change sub-agent reports failures (either **semantic evaluation failure** or **test failure**):
 
 1. **Report to CLI**:
    ```bash
    os-stronger goal test-failed --goal <goalName> --test-change <id> --summary "失败摘要"
    ```
+   The summary should include the failure type (semantic evaluation / test failure), specific details, and suggested fix directions.
 
 2. **Check the result**:
    - If `circuitBreak: true` → handle as `circuit_break` below
    - If `circuitBreak: false` → continue to step 3
 
 3. Run `os-stronger goal instructions --goal <goalName> --json` to get `fix_analysis_needed`.
+
+**Semantic evaluation vs test failure**: Both go through the same fix → test → circuit break flow. The difference is only in what the fix changes need to address — semantic evaluation failures mean the implementation doesn't meet acceptance criteria (missing features, wrong direction), while test failures mean the code has bugs.
 
 ### `circuit_break`
 
@@ -208,7 +211,7 @@ If your session was interrupted (user closed IDE, context was cleared, etc.):
 - **Never skip `os-stronger goal instructions`** between steps — it is your single source of truth
 - **Never manually edit state.json** — always go through CLI commands
 - **MUST auto-archive — no user confirmation needed** — in goal mode, when a change's tasks are all complete (and review passes if review enhancement is enabled), the agent MUST archive immediately via `os-stronger goal change archive`. Do NOT ask the user whether to archive. Do NOT pause for user confirmation. The only time the user is involved is: (1) during explore/goal definition, (2) when a circuit break fires, (3) when the goal is done. Everything in between is autonomous.
-- **Test change failure is expected** — it's part of the flow, not an error
+- **Test change failure is expected** — it's part of the flow, not an error. Failures can come from semantic evaluation (acceptance criteria not met) or test execution (code bugs). Both trigger the same fix → test → circuit break flow.
 - **Fix changes should be surgical** — fix the problem, don't refactor
 - **Archive completed goals** — when `nextAction.type === "done"`, the CLI will suggest running `os-stronger goal archive --goal <name>`. This is optional but recommended to keep the active goal list clean. Archived goals move to `openspec-goals/archive/`.
 - If a sub-agent seems stuck, check `os-stronger goal status --goal <name>` and re-dispatch
@@ -231,7 +234,7 @@ It coexists transparently with `review` and `skill-align`:
 ## CLI Reference
 
 ```
-os-stronger goal create --name <name> --description "..." [--max-fix-cycles 2]
+os-stronger goal create --name <name> --description "..." [--max-fix-cycles 3]
 os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix] [--test-cycle N] [--based-on <id>]
 os-stronger goal change propose --goal <name> --id <id>
 os-stronger goal change archive --goal <name> --id <id>

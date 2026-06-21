@@ -13,8 +13,11 @@ explore（人机对齐目标）
 → propose change 2 → apply change 2
 → ...
 → propose testchange_1 → apply testchange_1
-→ 如果失败 → fix change(s) → testchange_2
-→ 如果通过 → done 🎉
+  ├── Task 1: 独立语义评估（读 goal.md + 产物，判断验收标准是否满足）
+  │   ├── 不通过 → 报告失败 → fix change(s) → testchange_2
+  │   └── 通过 → 继续 Task 2~N 写测试 + 跑测试
+  ├── 测试失败 → fix change(s) → testchange_2
+  └── 全部通过 → done 🎉
 ```
 
 **核心特点：**
@@ -26,7 +29,7 @@ explore（人机对齐目标）
 - **自主 archive**：goal 模式下 agent 必须自主归档，不等用户确认——用户只在熔断或完成时回来
 - **CLI 是大脑**：`os-stronger goal instructions --json` 返回下一步该做什么 + 子 agent 提示词 + skill 引用
 - **状态在磁盘**：会话断了？重新跑 `instructions` 就能接上
-- **test → fix 循环**：最后一个 change 是 test change，失败后自动进入 fix 流程，有熔断兜底
+- **Test → Fix 循环**：最后一个 change 是 test change，失败后自动进入 fix 流程，有熔断兜底。test change 内部先做语义评估（独立判断验收标准是否满足），再做测试验证
 - **独立不侵入**：不 patch 任何 OpenSpec 文件，不启用时零影响
 
 ## 快速开始
@@ -84,7 +87,7 @@ AI 会：
 
 ```bash
 # 创建 goal
-os-stronger goal create --name <name> --description "..." [--max-fix-cycles 2]
+os-stronger goal create --name <name> --description "..." [--max-fix-cycles 3]
 
 # 注册 change 骨架
 os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix]
@@ -147,22 +150,34 @@ CLI 的 `instructions --json` 返回的 `nextAction.instruction` 会明确告诉
 
 ### Test → Fix 循环
 
-最后一个 change 是 test change，验证整个 goal 是否达标：
+最后一个 change 是 test change，验证整个 goal 是否达标。test change 的 apply 子 agent 执行两类任务：
+
+**Task 1: 独立语义评估** — 在写任何测试代码之前，子 agent 以 fresh context 的独立视角，读 goal.md 验收标准 + 所有已完成 change 的产物，逐条判断是否满足。不满足直接返回失败，不写测试。
+
+**Task 2~N: 测试用例** — 语义评估通过后，写测试、跑测试。
 
 ```
-testchange_1 失败
+testchange_1 apply
+  → Task 1: 语义评估
+    ├── 不通过 → 报告失败（哪条未满足 + 原因 + 建议）
+    └── 通过 → Task 2~N: 写测试 + 跑测试
+      ├── 测试失败 → 报告失败（测试名 + 错误 + 模块）
+      └── 测试通过 → archive → done 🎉
+
 → test-failed CLI 命令（cycle +1）
 → 分析子 agent 确定要修什么
 → 注册 fix change(s)（必须 --type fix）
-→ propose（按 openspec-propose skill）→ apply（按 openspec-apply-change skill）fix change(s)
+→ propose → apply fix change(s)
 → 自动插入 testchange_2
-→ 如果通过 → done 🎉
-→ 如果失败 → 继续 fix → testchange_3
-→ 超过 maxFixCycles → 熔断，通知用户（人回来）
+  → 如果通过 → done 🎉
+  → 如果失败 → 继续 fix → testchange_3
+  → 超过 maxFixCycles → 熔断，通知用户（人回来）
 → 用户修复后 → resume → 新 testchange → 通过 → done 🎉
 ```
 
-熔断上限默认 2 轮，创建 goal 时可配置：
+语义评估和测试失败走同一个 fix → test → 熔断流程，不区分处理。
+
+熔断上限默认 3 轮，创建 goal 时可配置：
 
 ```bash
 os-stronger goal create --name <name> --description "..." --max-fix-cycles 3
