@@ -10,6 +10,7 @@ const patcher = require('./patcher');
 const enhancements = {
   'review':      require('./enhancements/review'),
   'skill-align': require('./enhancements/skill-align'),
+  'goal':        require('../goal/scripts/index'),
 };
 
 // ─── CLI 输出 ───
@@ -162,7 +163,9 @@ async function init(projectDir, options = {}) {
   const toolDirs = [...new Set(skills.map(s => s.toolDir))];
   for (const enh of activeEnhancements) {
     if (!enh.skillTemplate) continue;
-    const templatePath = path.join(__dirname, 'enhancements', enh.id, enh.skillTemplate);
+    // 增强模块可以提供 skillTemplateDir（绝对路径），否则用默认的 src/enhancements/<id>/
+    const templateBase = enh.skillTemplateDir || path.join(__dirname, 'enhancements', enh.id);
+    const templatePath = path.join(templateBase, enh.skillTemplate);
     for (const toolDir of toolDirs) {
       const skillDir = path.join(projectDir, toolDir, 'skills', `os-stronger-${enh.id}`);
       fs.mkdirSync(skillDir, { recursive: true });
@@ -173,7 +176,7 @@ async function init(projectDir, options = {}) {
 
   // 6. 往 .gitignore 追加规则(幂等),防止 backup 和 .os-stronger/ 被提交
   const gitignorePath = path.join(projectDir, '.gitignore');
-  const ignoreRules = ['.os-stronger/', '*.os-stronger.bak'];
+  const ignoreRules = ['.os-stronger/', '*.os-stronger.bak', 'openspec-goals/*/state.json'];
   let existing = '';
   if (fs.existsSync(gitignorePath)) existing = fs.readFileSync(gitignorePath, 'utf8');
   const toAdd = ignoreRules.filter(r => !existing.includes(r));
@@ -234,11 +237,22 @@ function doRestore(projectDir) {
   const gitignorePath = path.join(projectDir, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
     const lines = fs.readFileSync(gitignorePath, 'utf8').split('\n');
-    const cleaned = lines.filter(l => l !== '.os-stronger/' && l !== '*.os-stronger.bak');
+    const cleaned = lines.filter(l =>
+      l !== '.os-stronger/' &&
+      l !== '*.os-stronger.bak' &&
+      l !== 'openspec-goals/*/state.json'
+    );
     if (cleaned.length !== lines.length) {
       fs.writeFileSync(gitignorePath, cleaned.join('\n'), 'utf8');
       ok('Cleaned .gitignore (removed os-stronger rules)');
     }
+  }
+
+  // 检查 openspec-goals/ 是否存在（不自动删——可能有用户数据）
+  const goalsDir = path.join(projectDir, 'openspec-goals');
+  if (fs.existsSync(goalsDir)) {
+    warn('openspec-goals/ 目录未清理（可能包含 goal.md 等用户数据）。');
+    info('如需删除: rm -rf openspec-goals/');
   }
 
   console.log();

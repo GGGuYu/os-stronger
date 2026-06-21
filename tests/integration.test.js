@@ -164,6 +164,7 @@ test('集成: init 往 .gitignore 追加规则(幂等)', () => {
   const gi = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
   assert.ok(gi.includes('.os-stronger/'), '.gitignore 应含 .os-stronger/');
   assert.ok(gi.includes('*.os-stronger.bak'), '.gitignore 应含 *.os-stronger.bak');
+  assert.ok(gi.includes('openspec-goals/*/state.json'), '.gitignore 应含 openspec-goals/*/state.json');
 
   // 二次 init 不重复追加
   runInit(dir, 'review');

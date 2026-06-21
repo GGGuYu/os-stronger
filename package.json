@@ -7,13 +7,14 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "goal"
   ],
   "scripts": {
-    "test": "node tests/patch.test.js && node tests/integration.test.js"
+    "test": "node tests/patch.test.js && node tests/goal.test.js && node tests/integration.test.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0"
   },
   "license": "MIT",
   "repository": {

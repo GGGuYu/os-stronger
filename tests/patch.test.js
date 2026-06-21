@@ -187,13 +187,13 @@ test('patcher: backup 只在不存在时做(防覆盖)', () => {
   const bakContent1 = fs.readFileSync(tmpFile + '.os-stronger.bak', 'utf8');
   assert.strictEqual(bakContent1, 'original');
 
-  // 修改文件,再 backup(应不覆盖)
-  fs.writeFileSync(tmpFile, 'modified');
+  // 修改文件（模拟 patch 后的内容含 marker），再 backup(应不覆盖)
+  fs.writeFileSync(tmpFile, 'modified with OS-STRONGER-REVIEW marker');
   patcher.backup(tmpFile);
   const bakContent2 = fs.readFileSync(tmpFile + '.os-stronger.bak', 'utf8');
   assert.strictEqual(bakContent2, 'original', 'backup 应保持原始内容');
 
-  // restore 应恢复原始
+  // restore 应恢复原始（当前文件含 marker，正常恢复）
   patcher.restore(tmpFile);
   assert.strictEqual(fs.readFileSync(tmpFile, 'utf8'), 'original');
   assert.ok(!fs.existsSync(tmpFile + '.os-stronger.bak'), 'backup 应被删除');

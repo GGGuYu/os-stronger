@@ -47,12 +47,22 @@ function backup(filePath) {
 
 function restore(filePath) {
   const backupPath = filePath + '.os-stronger.bak';
-  if (fs.existsSync(backupPath)) {
-    fs.copyFileSync(backupPath, filePath);
+  if (!fs.existsSync(backupPath)) return false;
+
+  // 检查当前文件是否包含 os-stronger marker（OS-STRONGER）
+  // 如果不包含，说明 OpenSpec update 覆盖了 skill 文件，当前文件是新版本原始文件
+  // 此时从旧 backup 恢复会导致降级——跳过并删除过期 backup
+  const currentContent = fs.readFileSync(filePath, 'utf8');
+  if (!currentContent.includes('OS-STRONGER')) {
+    // 当前文件没有 os-stronger 标记，可能是 OpenSpec 更新覆盖了
+    // 删除过期 backup，不恢复（避免降级）
     fs.unlinkSync(backupPath);
-    return true;
+    return 'skipped-no-marker';
   }
-  return false;
+
+  fs.copyFileSync(backupPath, filePath);
+  fs.unlinkSync(backupPath);
+  return true;
 }
 
 module.exports = { findOpenSpecSkills, backup, restore };
