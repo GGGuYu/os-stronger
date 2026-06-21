@@ -69,11 +69,12 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 
 5. **Decompose into changes**: Think about what changes are needed.
    - Break the goal into sequential, reasonably-sized work units
+   - **Order matters**: changes are executed in the order you register them (serial, one at a time). Register them in execution order — foundational changes first, then dependent changes, and test change last.
    - **The LAST change must be a test change** (`--type test`)
    - The test change validates the goal against acceptance criteria in goal.md
    - Minimum 2 changes (at least 1 implementation + 1 test)
 
-6. **Register each change**:
+6. **Register each change** in execution order:
    ```bash
    os-stronger goal change add --goal <goal-name> --id <id> --title "..." --type normal
    # ... for each implementation change ...
