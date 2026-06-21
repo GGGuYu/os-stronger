@@ -426,6 +426,30 @@ function cmdArchive(args) {
   }
 }
 
+function cmdDelete(args) {
+  const projectDir = process.cwd();
+  const goalName = getArg(args, '--goal');
+  const json = hasFlag(args, '--json');
+  // --force 接受但忽略(no-op): deleteGoal 内部已用 rmSync force:true 删目录;
+  // help 里保留 [--force] 仅为兼容已存在的脚本/文档,无实际语义。
+  // (参数解析是宽松的 indexOf/includes,未知 flag 自动忽略,无需显式消费。)
+  if (!goalName) { err('--goal 必填'); return 1; }
+
+  try {
+    const existed = state.deleteGoal(projectDir, goalName);
+    if (json) {
+      printJson({ ok: true, goalName, deleted: true, existed });
+    } else {
+      ok(`Goal "${goalName}" ${existed ? '已删除' : '本就不存在(视为已删除)'}`);
+    }
+    return 0;
+  } catch (e) {
+    if (json) printJson({ ok: false, error: e.message });
+    else err(e.message);
+    return 1;
+  }
+}
+
 // ─── 帮助 ───
 
 function printGoalHelp() {
@@ -441,7 +465,6 @@ function printGoalHelp() {
   console.log('  os-stronger goal test-failed --goal <name> --test-change <id> --summary "..."');
   console.log('  os-stronger goal resume --goal <name>');
   console.log('  os-stronger goal archive --goal <name>');
-  console.log('  os-stronger goal delete --goal <name>');
   console.log('  os-stronger goal delete --goal <name> [--force]');
   console.log('  os-stronger goal status --goal <name>');
   console.log('  os-stronger goal list [--all]');

@@ -223,5 +223,25 @@ test('集成: restore 清理 .gitignore 里的 os-stronger 规则', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ─── goal delete CLI 不再 ReferenceError ───
+test('集成: goal delete 不再崩溃且真删目录(修复 cmdDelete 未定义 bug)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-del-'));
+  // goal create 只需要能写 openspec-goals/,不需要 openspec 目录
+  execSync(`node "${BIN}" goal create --name delme --description "test"`, { cwd: dir, stdio: 'pipe' });
+  const goalDir = path.join(dir, 'openspec-goals', 'goal_delme');
+  assert.ok(fs.existsSync(goalDir), 'create 后应有 goal 目录');
+
+  // delete 不应抛 ReferenceError,且应真删目录
+  execSync(`node "${BIN}" goal delete --goal delme`, { cwd: dir, stdio: 'pipe' });
+  assert.ok(!fs.existsSync(goalDir), 'delete 后目录应消失');
+
+  // --force no-op 不报错
+  execSync(`node "${BIN}" goal create --name delme2 --description "test"`, { cwd: dir, stdio: 'pipe' });
+  execSync(`node "${BIN}" goal delete --goal delme2 --force`, { cwd: dir, stdio: 'pipe' });
+  assert.ok(!fs.existsSync(path.join(dir, 'openspec-goals', 'goal_delme2')), '--force 也应删除');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
 process.exit(FAIL > 0 ? 1 : 0);
