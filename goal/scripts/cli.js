@@ -47,6 +47,7 @@ function handleGoal(args) {
     case 'status':         return cmdStatus(args.slice(1));
     case 'list':           return cmdList(args.slice(1));
     case 'delete':         return cmdDelete(args.slice(1));
+    case 'archive':        return cmdArchive(args.slice(1));
     default:
       err(`未知子命令: ${subcmd}`);
       printGoalHelp();
@@ -376,9 +377,10 @@ function cmdStatus(args) {
 function cmdList(args) {
   const projectDir = process.cwd();
   const json = hasFlag(args, '--json');
+  const includeArchived = hasFlag(args, '--all');
 
   try {
-    const goals = state.listGoals(projectDir);
+    const goals = state.listGoals(projectDir, includeArchived);
     if (json) {
       printJson({ goals });
     } else {
@@ -400,6 +402,30 @@ function cmdList(args) {
   }
 }
 
+// ─── goal archive ───
+
+function cmdArchive(args) {
+  const projectDir = process.cwd();
+  const goalName = getArg(args, '--goal');
+  const json = hasFlag(args, '--json');
+
+  if (!goalName) { err('--goal 必填'); return 1; }
+
+  try {
+    state.archiveGoal(projectDir, goalName);
+    if (json) {
+      printJson({ ok: true, goalName, archived: true });
+    } else {
+      ok(`Goal "${goalName}" 已归档到 openspec-goals/archive/`);
+    }
+    return 0;
+  } catch (e) {
+    if (json) printJson({ ok: false, error: e.message });
+    else err(e.message);
+    return 1;
+  }
+}
+
 // ─── 帮助 ───
 
 function printGoalHelp() {
@@ -414,9 +440,11 @@ function printGoalHelp() {
   console.log('  os-stronger goal instructions --goal <name> --json');
   console.log('  os-stronger goal test-failed --goal <name> --test-change <id> --summary "..."');
   console.log('  os-stronger goal resume --goal <name>');
+  console.log('  os-stronger goal archive --goal <name>');
+  console.log('  os-stronger goal delete --goal <name>');
   console.log('  os-stronger goal delete --goal <name> [--force]');
   console.log('  os-stronger goal status --goal <name>');
-  console.log('  os-stronger goal list');
+  console.log('  os-stronger goal list [--all]');
 }
 
 module.exports = { handleGoal };

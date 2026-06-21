@@ -387,7 +387,14 @@ function getInstructions(projectDir, goalName) {
       phase: 'done',
       nextAction: {
         type: 'done',
-        instruction: `通知用户：Goal "${state.goalName}" 已完成！所有 ${state.changes.length} 个 change 已归档。🎉\n进度: ${progress}`,
+        instruction: [
+          `通知用户：Goal "${state.goalName}" 已完成！所有 ${state.changes.length} 个 change 已归档。🎉`,
+          `进度: ${progress}`,
+          ``,
+          `归档此 goal（可选，保持活跃 goal 列表干净）：`,
+          `  os-stronger goal archive --goal ${state.goalName}`,
+          `归档后 goal 数据移到 openspec-goals/archive/，不影响已合并的 specs。`,
+        ].join('\n'),
       },
     };
   }
@@ -452,7 +459,12 @@ function getInstructions(projectDir, goalName) {
       phase: 'done',
       nextAction: {
         type: 'done',
-        instruction: `通知用户：Goal "${state.goalName}" 已完成！🎉`,
+        instruction: [
+          `通知用户：Goal "${state.goalName}" 已完成！🎉`,
+          ``,
+          `归档此 goal（可选）：`,
+          `  os-stronger goal archive --goal ${state.goalName}`,
+        ].join('\n'),
       },
     };
   }
@@ -491,7 +503,7 @@ function getInstructions(projectDir, goalName) {
         },
         subagentPrompt: prompt,
         instruction: [
-          `起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
+          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
           `子 agent 会按照 openspec-propose skill 的工作流创建 proposal.md、design.md、tasks.md。`,
           `子 agent 返回后，运行:`,
           `  os-stronger goal change propose --goal ${state.goalName} --id ${nextChange.id}`,

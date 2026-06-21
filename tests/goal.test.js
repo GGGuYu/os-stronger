@@ -428,6 +428,29 @@ runTest('goal delete 删除 goal 目录', () => {
   state.deleteGoal(tmpDir, 'never-existed');
 });
 
+runTest('goal archive 归档已完成的 goal', () => {
+  state.createGoal(tmpDir, 'archive-me', '待归档');
+  state.addChange(tmpDir, 'archive-me', { id: 'impl', title: '实现' });
+  state.addChange(tmpDir, 'archive-me', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'archive-me', 'impl');
+  state.markArchived(tmpDir, 'archive-me', 'impl');
+  state.markProposed(tmpDir, 'archive-me', 'testchange_1');
+  state.markArchived(tmpDir, 'archive-me', 'testchange_1');
+
+  // goal 已完成
+  const s = state.loadState(tmpDir, 'archive-me');
+  assert.strictEqual(s.status, 'complete');
+
+  // 归档
+  state.archiveGoal(tmpDir, 'archive-me');
+  assert.ok(!fs.existsSync(state.goalDir(tmpDir, 'archive-me')), '原目录应已移走');
+  assert.ok(fs.existsSync(path.join(tmpDir, state.GOALS_DIR, 'archive', 'goal_archive-me')), '应移到 archive 目录');
+
+  // listGoals 不含归档的 goal
+  const goals = state.listGoals(tmpDir, false);
+  assert.ok(!goals.some(g => g.goalName === 'archive-me'), '归档的 goal 不应出现在活跃列表');
+});
+
 runTest('blockChange / unblockChange 通过 state.js 操作', () => {
   state.createGoal(tmpDir, 'block-test', 'block 测试');
   state.addChange(tmpDir, 'block-test', { id: 'impl', title: '实现' });

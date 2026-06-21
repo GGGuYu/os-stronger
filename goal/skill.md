@@ -203,11 +203,13 @@ If your session was interrupted (user closed IDE, context was cleared, etc.):
 ## Guardrails
 
 - **Always use sub-agents** for propose and apply — keep your orchestrator context thin
+- **STRICTLY SERIAL — one sub-agent at a time** — NEVER dispatch a sub-agent and run CLI commands in the same response. NEVER have two sub-agents running simultaneously. Before dispatching a sub-agent, check if there are any active sub-agents from previous steps. If yes, wait for them to complete (or close them) before dispatching. The flow is always: check no active sub-agents → dispatch ONE sub-agent → wait for it to return → run CLI command → run instructions → repeat.
 - **Never skip `os-stronger goal instructions`** between steps — it is your single source of truth
 - **Never manually edit state.json** — always go through CLI commands
 - **MUST auto-archive — no user confirmation needed** — in goal mode, when a change's tasks are all complete (and review passes if review enhancement is enabled), the agent MUST archive immediately via `os-stronger goal change archive`. Do NOT ask the user whether to archive. Do NOT pause for user confirmation. The only time the user is involved is: (1) during explore/goal definition, (2) when a circuit break fires, (3) when the goal is done. Everything in between is autonomous.
 - **Test change failure is expected** — it's part of the flow, not an error
 - **Fix changes should be surgical** — fix the problem, don't refactor
+- **Archive completed goals** — when `nextAction.type === "done"`, the CLI will suggest running `os-stronger goal archive --goal <name>`. This is optional but recommended to keep the active goal list clean. Archived goals move to `openspec-goals/archive/`.
 - If a sub-agent seems stuck, check `os-stronger goal status --goal <name>` and re-dispatch
 
 ---
@@ -237,6 +239,8 @@ os-stronger goal change unblock --goal <name> --id <id>
 os-stronger goal instructions --goal <name> --json
 os-stronger goal test-failed --goal <name> --test-change <id> --summary "..."
 os-stronger goal resume --goal <name>
+os-stronger goal archive --goal <name>
+os-stronger goal delete --goal <name>
 os-stronger goal status --goal <name>
-os-stronger goal list
+os-stronger goal list [--all]
 ```

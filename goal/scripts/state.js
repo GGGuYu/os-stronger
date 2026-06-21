@@ -365,7 +365,7 @@ function isCircuitBroken(state) {
 
 // ─── 查询 ───
 
-function listGoals(projectDir) {
+function listGoals(projectDir, includeArchived) {
   const goalsRoot = path.join(projectDir, GOALS_DIR);
   if (!fs.existsSync(goalsRoot)) return [];
 
@@ -405,6 +405,30 @@ function deleteGoal(projectDir, goalName) {
   return true;
 }
 
+function archiveGoal(projectDir, goalName) {
+  const dir = goalDir(projectDir, goalName);
+  if (!fs.existsSync(dir)) {
+    throw new Error(`Goal "${goalName}" 不存在`);
+  }
+
+  // 更新状态为 archived
+  const state = loadState(projectDir, goalName);
+  if (state) {
+    state.status = 'archived';
+    saveState(projectDir, goalName, state);
+  }
+
+  // 移动到 archive 目录
+  const archiveDir = path.join(projectDir, GOALS_DIR, 'archive');
+  ensureDir(archiveDir);
+  const destDir = path.join(archiveDir, `goal_${goalName}`);
+  if (fs.existsSync(destDir)) {
+    throw new Error(`归档目标已存在: ${destDir}`);
+  }
+  fs.renameSync(dir, destDir);
+  return true;
+}
+
 // ─── 导出 ───
 
 module.exports = {
@@ -425,5 +449,6 @@ module.exports = {
   isCircuitBroken,
   listGoals,
   deleteGoal,
+  archiveGoal,
   getProgress,
 };
