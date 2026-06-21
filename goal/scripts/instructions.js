@@ -482,6 +482,7 @@ function getInstructions(projectDir, goalName) {
           failureSummary: state.fixFlow.lastFixResult,
           instruction: [
             `Test change "${state.fixFlow.failedTestChange}" 失败（第 ${state.fixFlow.cycle} 轮）。`,
+            `起分析子 agent 前：先确认没有其他子 agent 还在跑（防重复派发）。`,
             `起分析子 agent（fresh context），给它：`,
             `1. goal.md 路径: ${goalDocPath(projectDir, state.goalName)}`,
             `2. 所有已完成 change 的路径（从 contextForSubagent.completedChangeArtifacts 获取）`,
@@ -490,6 +491,7 @@ function getInstructions(projectDir, goalName) {
             `分析子 agent 输出（根据失败类型）：`,
             `- 语义评估不通过：哪条验收标准未满足、缺什么实现/要补什么 change`,
             `- 测试失败：哪个模块有 bug、每个模块修什么`,
+            `分析子 agent 跑的时候**等它回报**，不要轮询。`,
             `然后注册 fix change（必须 --type fix）：`,
             `  os-stronger goal change add --goal ${state.goalName} --id fixchange_${state.fixFlow.cycle}-<module> --title "..." --type fix`,
             `注册后重新运行 os-stronger goal instructions --goal ${state.goalName} --json。`,
@@ -570,7 +572,9 @@ function getInstructions(projectDir, goalName) {
         },
         subagentPrompt: prompt,
         instruction: [
-          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。\n起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
+          `⚠️ 串行执行（两阶段，都要遵守）：`,
+          `- 派之前：先确认没有其他子 agent 还在跑。如果之前派了一个还没收到回报，**等它返回再派下一个**——两个子 agent 同时操作同一个 change 会冲突。`,
+          `- 派之后：起子 agent（fresh context），传入 subagentPrompt，然后**等它回报**——不要检查它在做什么、不要轮询进度、不要跑 os-stronger goal status 看完了没。子 agent 读 specs / 写代码 / 跑测试本来就需要时间，轮询只浪费 token。它返回报告后你才行动。`,
           `子 agent 会按照 openspec-propose skill 的工作流创建 proposal.md、design.md、tasks.md。`,
           `子 agent 返回后，运行:`,
           `  os-stronger goal change propose --goal ${state.goalName} --id ${nextChange.id}`,
@@ -606,8 +610,9 @@ function getInstructions(projectDir, goalName) {
         })),
         subagentPrompt: prompt,
         instruction: [
-          `⚠️ 串行检查：派子 agent 前，先检查是否有存活的子 agent（如有则等待其返回或关闭它）。确保同一时间只有一个子 agent 在执行。`,
-          `起子 agent（fresh context），传入 subagentPrompt 作为任务。`,
+          `⚠️ 串行执行（两阶段，都要遵守）：`,
+          `- 派之前：先确认没有其他子 agent 还在跑。如果之前派了一个还没收到回报，**等它返回再派下一个**——两个子 agent 同时操作同一个 change 会冲突。`,
+          `- 派之后：起子 agent（fresh context），传入 subagentPrompt，然后**等它回报**——不要检查它在做什么、不要轮询进度、不要跑 os-stronger goal status 看完了没。它返回报告后你才行动。`,
           `子 agent 会按照 openspec-apply-change skill 的工作流读取上下文、实现 tasks、跑测试，`,
           `然后按照 openspec-archive 惯例自主归档（调用 os-stronger goal change archive）。`,
           `子 agent 返回后，重新运行 os-stronger goal instructions --goal ${state.goalName} --json 获取下一步。`,

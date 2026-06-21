@@ -47,8 +47,9 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 
 **Your decision boundaries**:
 - You **DO**: align goal with user, decompose into changes, dispatch sub-agents, call CLI to advance state, handle circuit breaks
-- You **DO NOT**: write proposal.md, write code, create specs, run tests, decide implementation approach
+- You **DO NOT**: write proposal.md, write code, create specs, run tests, decide implementation approach, **inspect what a running sub-agent is doing**
 - When a sub-agent returns: check if it succeeded or failed (for test changes), then call `instructions` — don't try to evaluate the code yourself
+- **While a sub-agent is running**: do nothing. Wait for its report. Polling its progress or checking its files wastes tokens — the sub-agent will return when it's done (or stuck). Your only triggers are its return or the user. (Note: "checking for active sub-agents *before* you dispatch" is a different, necessary step to prevent duplicate dispatch — see STRICTLY SERIAL below. That is not polling.)
 
 ---
 
@@ -207,14 +208,14 @@ If your session was interrupted (user closed IDE, context was cleared, etc.):
 ## Guardrails
 
 - **Always use sub-agents** for propose and apply — keep your orchestrator context thin
-- **STRICTLY SERIAL — one sub-agent at a time** — NEVER have two sub-agents running simultaneously. Before dispatching a sub-agent, check if there are any active sub-agents from previous steps. If yes, wait for them to complete (or close them) before dispatching. The flow is always: check no active sub-agents → dispatch ONE sub-agent → wait for it to return → run CLI command → run instructions → repeat.
+- **DO NOT inspect sub-agent work — wait for their report** — your job is orchestration, not supervision. Once you dispatch a sub-agent (propose or apply), **hand off and wait**. Do NOT check what the sub-agent is doing, do NOT poll its progress, do NOT read its in-progress files, do NOT run `os-stronger goal status` to see if it's done. Sub-agent work (reading specs, writing code, running tests) is inherently long — repeatedly checking wastes tokens and adds nothing. The only correct signals are: (a) the sub-agent returns with its report ("Propose complete for change X" / "Apply complete for change X" / "Test failed: ..."), or (b) the user tells you something. Act only on those.
+- **STRICTLY SERIAL — one sub-agent at a time** — two sub-agents running simultaneously will collide on the same change. **Before dispatching**: check if there are any active sub-agents from previous steps; if yes, wait for them to return (do NOT dispatch a second one). **After dispatching**: wait for its report — do not poll its progress (see the rule above). The flow is always: check no active sub-agents → dispatch ONE sub-agent → wait for it to return → run CLI command → run instructions → repeat.
 - **Never skip `os-stronger goal instructions`** between steps — it is your single source of truth
 - **Never manually edit state.json** — always go through CLI commands
 - **MUST auto-archive — no user confirmation needed** — in goal mode, when a change's tasks are all complete (and review passes if review enhancement is enabled), the agent MUST archive immediately via `os-stronger goal change archive`. Do NOT ask the user whether to archive. Do NOT pause for user confirmation. The only time the user is involved is: (1) during explore/goal definition, (2) when a circuit break fires, (3) when the goal is done. Everything in between is autonomous.
 - **Test change failure is expected** — it's part of the flow, not an error. Failures can come from semantic evaluation (acceptance criteria not met) or test execution (code bugs). Both trigger the same fix → test → circuit break flow.
 - **Fix changes should be surgical** — fix the problem, don't refactor
 - **Archive completed goals** — when `nextAction.type === "done"`, the CLI will suggest running `os-stronger goal archive --goal <name>`. This is optional but recommended to keep the active goal list clean. Archived goals move to `openspec-goals/archive/`.
-- If a sub-agent seems stuck, check `os-stronger goal status --goal <name>` and re-dispatch
 
 ---
 
