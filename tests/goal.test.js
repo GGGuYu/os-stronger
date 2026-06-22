@@ -643,6 +643,11 @@ runTest('fix_analysis_needed instruction 按失败类型分叉', () => {
   assert.ok(instruction.includes('语义评估不通过'), 'fix_analysis instruction 应包含语义评估分叉');
   assert.ok(instruction.includes('测试失败'), 'fix_analysis instruction 应包含测试失败分叉');
   assert.ok(instruction.includes('缺什么实现'), 'fix_analysis instruction 应引导补缺失功能');
+  // 决策 5 粒度红线:默认一个 fix change 装本轮所有小修,不按问题机械拆分
+  assert.ok(instruction.includes('拆 fix change 的粒度原则'), 'fix_analysis instruction 应含 fix change 粒度原则(决策 5)');
+  assert.ok(instruction.includes('默认一个 fix change 装本轮所有小修'), 'fix_analysis instruction 应说明默认合并小修(决策 5)');
+  assert.ok(instruction.includes('过度拆分'), 'fix_analysis instruction 应警告过度拆分(决策 5)');
+  assert.ok(!instruction.includes('-<module>'), 'fix_analysis instruction 不应再用 -<module> 占位符暗示按模块拆(决策 5)');
 });
 
 console.log('\n  goal 测试完成\n');

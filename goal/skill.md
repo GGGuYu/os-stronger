@@ -141,7 +141,7 @@ os-stronger goal instructions --goal <goalName> --json
 
 ### `fix_analysis_needed`
 
-A test change failed. You need to analyze the failure and create fix changes.
+A test change failed. You need to analyze the failure and create fix change(s).
 
 1. **Launch analysis sub-agent** (fresh context): Give it:
    - goal.md path
@@ -150,9 +150,17 @@ A test change failed. You need to analyze the failure and create fix changes.
    - The failure summary (from `nextAction.failureSummary`)
    - Ask it to identify which modules need fixing and what to fix
 
-2. **Register fix changes** based on analysis:
+2. **Register fix change(s)** based on analysis — **mind the granularity**:
+   - **Default: one fix change holds all the small fixes this round.** Put multiple independent small problems as separate tasks in the *same* fix change's tasks.md, rather than opening one fix change per problem.
+   - **Only split into multiple fix changes when a problem is "big"** — needs a refactor, a module rewrite, an architecture adjustment, or high coupling that requires isolated design. For those, a single fix change isn't enough and deserves its own propose→apply cycle.
+   - **Rule of thumb:** can this fix be described and done in 1-2 tasks? Yes → fold it into the shared fix change. No, it needs its own design → separate fix change.
+   - **Anti-pattern:** the failure report lists 3 unsatisfied items, so you mechanically open 3 fix changes. Unless each is a big fix, this is over-splitting — multiple fix changes mean multiple propose→apply→archive cycles, multiplied context-switching and token cost, and small fixes are often related so splitting them risks missing the connection.
+
    ```bash
-   os-stronger goal change add --goal <goalName> --id fixchange_1-<module> --title "..." --type fix
+   # Default: single fix change for the whole round
+   os-stronger goal change add --goal <goalName> --id fixchange_<cycle> --title "..." --type fix
+   # Only when truly splitting into multiple: add a short tag suffix
+   os-stronger goal change add --goal <goalName> --id fixchange_<cycle>-<short-tag> --title "..." --type fix
    ```
 
 3. **Continue the loop**: The CLI will dispatch propose → apply for fix changes.
