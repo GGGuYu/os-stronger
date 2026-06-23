@@ -8,6 +8,14 @@ const REVIEW_WORKFLOW_BLOCK = `
 ${PATCH_MARKER}
    **os-stronger review workflow** — triggered when the current task is a Review task (e.g. "Review: 按照...启动 Review N...") OR when \`state: "all_done"\` is reached without a Review task having run yet.
 
+   **STEP -1 — NESTED SUB-AGENT CHECK (run before STEP 0, before anything else)**:
+   This workflow requires launching a review sub-agent. If you ARE a sub-agent yourself (i.e. you were spawned by another agent and cannot spawn further sub-agents), you MUST skip review entirely — nested sub-agents are unsupported on most platforms and will fail or stall.
+   How to tell if you're a nested sub-agent:
+   - You were explicitly told you're a sub-agent (e.g. your prompt says "You are a PROPOSE/APPLY sub-agent", or you're running under a goal/coordination layer like os-stronger goal).
+   - You do NOT have a "launch sub-agent" / "spawn agent" / "Task tool" capability available to you.
+   If EITHER signal is present: **mark the Review task \`[x]\` (if there is one), do NOT launch any sub-agent, do NOT write anything, and proceed to the next task or archive.** Review is silently skipped — do not report an error or ask the user.
+   Only if you are the TOP-LEVEL agent (you can spawn sub-agents AND you were not spawned as a sub-agent yourself) do you continue to STEP 0.
+
    **When you encounter a Review task** (the task description contains "Review" and "启动 Review"):
 
      **STEP 0 — CIRCUIT BREAKER (highest priority, check FIRST before anything else)**:

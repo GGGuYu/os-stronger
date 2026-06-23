@@ -328,7 +328,7 @@ patches: {
 
 7. **restore 降级防护**:如果 OpenSpec update 覆盖了 skill 文件（文件不含 os-stronger marker），restore 会跳过恢复并删除过期 backup，避免把新版本降级回旧版本。但用户可能困惑为什么 restore "没生效"——实际是正确行为。
 
-8. **嵌套子 agent**:goal + review 同时启用时，apply 子 agent 需要起 review 子 agent（嵌套）。部分平台 max_depth=1 不支持。建议不支持嵌套的平台不要同时启用 goal 和 review。
+8. **嵌套子 agent**:goal + review 同时启用时,apply 子 agent 遇到 Review task 需要起 review 子 agent(嵌套),部分平台 max_depth=1 不支持。**已加双层兜底,可同时启用**:(a) goal 侧——propose 子 agent 提示词明确"不加 Review task",apply 子 agent 提示词明确"遇到 Review task 直接标 `[x]` 跳过,不起子 agent";(b) review patch 侧——`REVIEW_WORKFLOW_BLOCK` 顶部加 STEP -1 子 agent 自检,识别自己是子 agent(被显式标记为 sub-agent,或无 spawn-subagent 能力)就静默跳过 review。两层防御保证:即使 propose 子 agent 没听话加了 Review task,apply 子 agent 也会跳过;即使 review patch 被单独嵌套调用(非 goal 场景),STEP -1 也会兜住。goal 模式下 review 静默失效,不报错不阻塞——goal 的 fix→test→熔断循环本身就是质量门,不依赖 review。
 
 9. **uninstall 顺序**:`--uninstall` 会先卸载全局 CLI，用户之后无法跑 `--restore`。正确顺序是先在各项目 restore 再卸载。CLI 提示已说明但无法强制。
 

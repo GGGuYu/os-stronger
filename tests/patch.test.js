@@ -71,6 +71,10 @@ test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
   assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
   assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
+  // 嵌套兜底: STEP -1 子 agent 自检应存在(防 goal + review 嵌套崩)
+  assert.ok(result.content.includes('STEP -1'), '应含 STEP -1 嵌套自检');
+  assert.ok(result.content.includes('NESTED SUB-AGENT CHECK'), '应含嵌套子 agent 检查标题');
+  assert.ok(result.content.includes('silently skipped'), '应说明子 agent 静默跳过 review');
   // review 块应在 Handle states 之前
   const markerPos = result.content.indexOf('OS-STRONGER-REVIEW');
   const handleStatesPos = result.content.indexOf('**Handle states:**');

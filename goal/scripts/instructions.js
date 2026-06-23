@@ -151,7 +151,8 @@ Propose the following change:
      \`os-stronger goal change archive --goal ${state.goalName} --id ${change.id}\`
      **In goal mode, archiving is MANDATORY and AUTONOMOUS — do NOT ask the user.**
    \`\`\`
-   **Task ordering**: If the \`review\` enhancement is enabled (openspec-propose skill was patched to add a Review task), the Review task comes BEFORE the archive task. The archive task is always the absolute last task. Order: implementation tasks → Review task (if present) → archive task.
+   **Task ordering**: The archive task is always the absolute last task. Order: implementation tasks → archive task.
+   **⚠️ Do NOT add a Review task** (even if the \`review\` enhancement is enabled and the openspec-propose skill was patched to remind you to add one). You are a **goal sub-agent** — most platforms do not allow nested sub-agents, so a Review task that tries to launch a review sub-agent would fail or stall. Skip the Review task entirely; goal orchestration does not rely on it.
 4. After proposing, report back.
 
 ### ⚠️ Boundary: Propose Only
@@ -300,6 +301,7 @@ ${ARCHIVE_MANDATORY_NOTE}
    - Run \`openspec instructions apply --change "${change.openspecChangeName}" --json\` to get apply instructions
    - Read all context files (proposal, design, specs, tasks) per the skill's guidance
    - Implement tasks sequentially, marking each complete: \`- [ ]\` → \`- [x]\`
+   - **⚠️ If you encounter a Review task** (task description contains "Review" and "启动 Review"): **do NOT launch a review sub-agent**. You are a **goal sub-agent** — most platforms forbid nested sub-agents, so launching one would fail or stall. Instead, mark the Review task \`[x]\` and move on. The openspec-apply-change skill's review workflow is overridden here: in goal mode, review is skipped because the goal orchestrator (and its fix→test→熔断 loop) already provides the quality gate.
 2. The LAST task in tasks.md will instruct you to:
    - Run all tests and verify they pass
    - **Step 1: OpenSpec archive** — run \`openspec archive --change "${change.openspecChangeName}"\` to merge specs into \`openspec/specs/\` and move the change to archive/. Read and follow the \`openspec-archive\` skill in your project's skills directory (e.g., \`.claude/skills/openspec-archive/SKILL.md\`) for the full workflow.
