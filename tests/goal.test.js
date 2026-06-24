@@ -91,6 +91,57 @@ runTest('addChange 不允许重复 id', () => {
   assert.throws(() => state.addChange(tmpDir, 'test-goal', { id: 'backend', title: '重复' }), /已存在/);
 });
 
+runTest('addChange 智能默认:normal change 插到未归档 testchange 之前', () => {
+  state.createGoal(tmpDir, 'dyn-goal', '动态编排测试');
+  state.addChange(tmpDir, 'dyn-goal', { id: 'change1', title: '前置' });
+  state.addChange(tmpDir, 'dyn-goal', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  // change1 归档后,主 agent 追加 change2 —— 应自动插到 testchange_1 之前
+  state.markProposed(tmpDir, 'dyn-goal', 'change1');
+  state.markArchived(tmpDir, 'dyn-goal', 'change1');
+  state.addChange(tmpDir, 'dyn-goal', { id: 'change2', title: '后续' });
+
+  const st = state.loadState(tmpDir, 'dyn-goal');
+  const ids = st.changes.map(c => c.id);
+  assert.deepStrictEqual(ids, ['change1', 'change2', 'testchange_1'], 'change2 应插在 testchange_1 之前');
+});
+
+runTest('addChange --before:显式插在指定 change 之前', () => {
+  state.createGoal(tmpDir, 'before-goal', 'before 测试');
+  state.addChange(tmpDir, 'before-goal', { id: 'change1', title: '一' });
+  state.addChange(tmpDir, 'before-goal', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  // 显式 --before testchange_1,插多个 change
+  state.addChange(tmpDir, 'before-goal', { id: 'change2', title: '二', before: 'testchange_1' });
+  state.addChange(tmpDir, 'before-goal', { id: 'change3', title: '三', before: 'testchange_1' });
+
+  const st = state.loadState(tmpDir, 'before-goal');
+  const ids = st.changes.map(c => c.id);
+  // change2, change3 都插在 testchange_1 之前,且按插入顺序排列
+  assert.deepStrictEqual(ids, ['change1', 'change2', 'change3', 'testchange_1']);
+});
+
+runTest('addChange --before 锚点已归档时报错', () => {
+  state.createGoal(tmpDir, 'arch-goal', '归档锚点测试');
+  state.addChange(tmpDir, 'arch-goal', { id: 'change1', title: '一' });
+  state.addChange(tmpDir, 'arch-goal', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'arch-goal', 'change1');
+  state.markArchived(tmpDir, 'arch-goal', 'change1');
+  // change1 已归档,不能作 --before 锚点
+  assert.throws(
+    () => state.addChange(tmpDir, 'arch-goal', { id: 'change2', title: '二', before: 'change1' }),
+    /已归档/
+  );
+});
+
+runTest('addChange 无 testchange 时 normal change push 末尾(兼容旧行为)', () => {
+  state.createGoal(tmpDir, 'no-test-goal', '无 test 测试');
+  state.addChange(tmpDir, 'no-test-goal', { id: 'change1', title: '一' });
+  state.addChange(tmpDir, 'no-test-goal', { id: 'change2', title: '二' });
+
+  const st = state.loadState(tmpDir, 'no-test-goal');
+  const ids = st.changes.map(c => c.id);
+  assert.deepStrictEqual(ids, ['change1', 'change2'], '无 testchange 时应 push 末尾');
+});
+
 runTest('markProposed 更改 phase', () => {
   state.createGoal(tmpDir, 'test-goal', '测试');
   state.addChange(tmpDir, 'test-goal', { id: 'backend', title: '后端' });

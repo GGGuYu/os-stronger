@@ -90,7 +90,9 @@ AI 会：
 os-stronger goal create --name <name> --description "..." [--max-fix-cycles 3]
 
 # 注册 change 骨架
-os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix]
+os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix] [--before <id>]
+#   --before <id>: 把新 change 插在指定 change 之前(用于动态编排时插入中间 change)
+#   不加 --before 时,normal change 会自动插到最后一个未归档 testchange 之前(防排到 testchange 后面)
 
 # 标记 change 进入 proposed（propose 子 agent 返回后调用）
 os-stronger goal change propose --goal <name> --id <id>

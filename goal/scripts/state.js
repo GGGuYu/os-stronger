@@ -107,7 +107,13 @@ ${description}
 
      复杂度评估也写在这一节:列出每个 change 的范围、依赖、预估工作量(S/M/L)、为什么定这个粒度。
      特别复杂或耦合度高的部分可以拆成多个 change;不要一个 change 装太多,也不要拆得过细。
-     这只是拆分参考,最终粒度由主 agent 判断。 -->
+     这只是拆分参考,最终粒度由主 agent 判断。
+
+     change 计划会演化(决策 14):如果后续 change 依赖前置 change 的产物,
+     可一开始只注册确定的前置 change + testchange,前置完成后用
+     'os-stronger goal change add' 追加中间 change(自动插到 testchange 前)。
+     每个 change 完成后,主 agent 更新本节的计划(把"暂定"改成"实际")。
+     注意:本节的 change 计划是"当前理解",执行顺序以 state.changes 为准。 -->
 
 ## 设计规范
 
@@ -143,7 +149,7 @@ function addChange(projectDir, goalName, changeOpts) {
   const state = loadState(projectDir, goalName);
   if (!state) throw new Error(`Goal "${goalName}" 不存在`);
 
-  const { id, title, type = 'normal', testCycle, basedOn, dependsOn } = changeOpts;
+  const { id, title, type = 'normal', testCycle, basedOn, dependsOn, before } = changeOpts;
   if (!id || !title) throw new Error('id 和 title 必填');
 
   // 检查 id 唯一
@@ -186,7 +192,36 @@ function addChange(projectDir, goalName, changeOpts) {
     );
   }
 
-  state.changes.push(change);
+  // 决定插入位置:
+  // - 显式 --before <id>:插在该 change 之前(锚点必须存在且未归档)
+  // - 智能默认:normal change 且未指定 before 时,自动插到最后一个未归档 testchange 之前
+  //   (覆盖"前置 change 完成后追加中间 change"的动态编排场景,避免新 change 排到 testchange 后面)
+  // - 其余(test/fix 或无 testchange):push 末尾
+  let insertIdx = state.changes.length; // 默认末尾
+  if (before) {
+    const anchorIdx = state.changes.findIndex(c => c.id === before);
+    if (anchorIdx === -1) {
+      throw new Error(`--before 锚点 change "${before}" 不存在`);
+    }
+    if (state.changes[anchorIdx].phase === 'archived') {
+      throw new Error(`--before 锚点 change "${before}" 已归档,不能作为插入位置(已归档的 change 不再参与执行顺序)`);
+    }
+    insertIdx = anchorIdx;
+  } else if (type === 'normal') {
+    // 智能默认:找最后一个未归档的 testchange,插到它前面
+    let lastActiveTestIdx = -1;
+    for (let i = state.changes.length - 1; i >= 0; i--) {
+      if (state.changes[i].type === 'test' && state.changes[i].phase !== 'archived') {
+        lastActiveTestIdx = i;
+        break;
+      }
+    }
+    if (lastActiveTestIdx !== -1) {
+      insertIdx = lastActiveTestIdx;
+    }
+  }
+
+  state.changes.splice(insertIdx, 0, change);
   saveState(projectDir, goalName, state);
   return change;
 }

@@ -85,6 +85,12 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
    - The test change validates the goal against acceptance criteria in goal.md
    - Minimum 2 changes (at least 1 implementation + 1 test)
 
+   **Granularity — don't over-split.** A change is a coherent unit of work, not a single task. Small tasks that serve one purpose belong in the *same* change (as multiple tasks in its tasks.md), not as separate changes. Only split into multiple changes when the parts are genuinely separate modules — splitting them gives cleaner fresh-context sub-agents and better isolation, and the parts are large enough to be worth their own propose→apply cycle.
+   - **Rule of thumb**: can this be described and done as one coherent piece with a handful of tasks? Yes → one change. Does it span clearly separate modules that each need their own design? → multiple changes.
+   - **Anti-pattern**: one change per task. "Write the text" / "make the SRT" / "write the storyboard" as three separate changes when they're really one cohesive "produce the script" effort — that's over-splitting (more propose→apply cycles, more context-switching, no benefit).
+
+   **Small goals are fine too.** Not every goal needs 5+ changes. If the whole thing is modest in scope, **one implementation change + one test change (1+1)** is a perfectly valid use of goal — you still get the test change's semantic evaluation + test as a built-in review. Don't pad a small goal with artificial changes.
+
 8. **Register each change** in execution order:
    ```bash
    os-stronger goal change add --goal <goal-name> --id <id> --title "..." --type normal
@@ -95,6 +101,36 @@ You are an orchestrator. You don't write code or create OpenSpec artifacts yours
 9. **Show the change list to user for confirmation.**
 
 10. **Enter the loop**:
+    ```bash
+    os-stronger goal instructions --goal <goal-name> --json
+    ```
+
+### Dynamic change planning (changes can evolve)
+
+The change list is **not** frozen at registration. You may start with only a front-loaded change + the test change, and append more changes *after* earlier ones reveal what's needed. This is the intended pattern when later changes depend on the artifacts of earlier ones — you can't plan them all upfront.
+
+**How to append a change mid-way** — when a change archives and you now know what comes next, register the new change and it will be inserted **before the test change** automatically (so it runs before the final validation):
+
+```bash
+# After change1 archives, you realize change2 is needed:
+os-stronger goal change add --goal <goal-name> --id change2 --title "..." --type normal
+# ↑ smart default: normal change is auto-inserted before the active testchange.
+#   Explicit control: --before <id> inserts before a specific change.
+os-stronger goal change add --goal <goal-name> --id change3 --title "..." --before testchange_1
+```
+
+**Example — a video-production goal** (later changes depend on earlier artifacts):
+
+> You can't know how many "shot" changes to register until the storyboard exists.
+>
+> - **Start**: register `change1` (generate script) + `testchange_1` (validate the final video). That's it — you don't yet know the middle.
+> - **change1 archives** → you read its script artifact, now you know the structure. Update goal.md's `## 宏观架构` with what you learned, then register `change2` (script → SRT timeline) — it auto-inserts before `testchange_1`.
+> - **change2 archives** → the SRT reveals there are, say, 15 shots. Register `change3` (SRT → storyboard). Then register shot-implementation changes as the storyboard dictates.
+> - Keep evolving until the pipeline is complete, then `testchange_1` runs last.
+>
+> goal.md's change plan is a **living document** — update its `## 宏观架构` section as each change completes (turn "tentative" into "actual", note new module relationships). But remember: goal.md is design intent, `state.changes` is ground truth for execution order. Sub-agents read goal.md for context, the state machine drives execution.
+
+**When you CAN'T plan all changes upfront, that's not a failure — it's the dynamic-planning pattern.** Start with what's certain (the front + the test), append the middle as it reveals itself.
     ```bash
     os-stronger goal instructions --goal <goal-name> --json
     ```

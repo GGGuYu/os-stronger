@@ -114,6 +114,7 @@ function cmdChangeAdd(args) {
   const testCycle = getArg(args, '--test-cycle') ? parseInt(getArg(args, '--test-cycle'), 10) : undefined;
   const basedOn = getArg(args, '--based-on');
   const dependsOn = getArg(args, '--depends-on');
+  const before = getArg(args, '--before');
   const json = hasFlag(args, '--json');
 
   if (!goalName || !id || !title) {
@@ -122,7 +123,7 @@ function cmdChangeAdd(args) {
   }
 
   try {
-    const change = state.addChange(projectDir, goalName, { id, title, type, testCycle, basedOn, dependsOn });
+    const change = state.addChange(projectDir, goalName, { id, title, type, testCycle, basedOn, dependsOn, before });
     if (json) {
       printJson({ ok: true, change });
     } else {
@@ -130,6 +131,11 @@ function cmdChangeAdd(args) {
       info(`  标题: ${title}`);
       info(`  类型: ${type}${testCycle ? ` (cycle ${testCycle})` : ''}`);
       info(`  OpenSpec change name: ${change.openspecChangeName}`);
+      if (before) {
+        info(`  插入位置: ${before} 之前`);
+      } else if (type === 'normal') {
+        info(`  插入位置: 自动(testchange 之前,若无则末尾)`);
+      }
     }
     return 0;
   } catch (e) {
@@ -456,7 +462,7 @@ function printGoalHelp() {
   console.log('os-stronger goal — 长程目标编排\n');
   console.log('Usage:');
   console.log('  os-stronger goal create --name <name> --description "..."');
-  console.log('  os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix]');
+  console.log('  os-stronger goal change add --goal <name> --id <id> --title "..." [--type normal|test|fix] [--before <id>]');
   console.log('  os-stronger goal change propose --goal <name> --id <id>');
   console.log('  os-stronger goal change archive --goal <name> --id <id>');
   console.log('  os-stronger goal change block --goal <name> --id <id> --reason "..."');
