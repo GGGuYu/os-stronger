@@ -117,6 +117,12 @@ function cmdChangeAdd(args) {
   const before = getArg(args, '--before');
   const json = hasFlag(args, '--json');
 
+  // --before 出现但缺值(末尾无参)时报错,避免静默降级为智能默认
+  if (hasFlag(args, '--before') && !before) {
+    err('--before 需要一个 change id 作为参数(如 --before testchange_1)');
+    return 1;
+  }
+
   if (!goalName || !id || !title) {
     err('--goal, --id, --title 必填');
     return 1;

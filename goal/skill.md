@@ -131,9 +131,6 @@ os-stronger goal change add --goal <goal-name> --id change3 --title "..." --befo
 > goal.md's change plan is a **living document** — update its `## 宏观架构` section as each change completes (turn "tentative" into "actual", note new module relationships). But remember: goal.md is design intent, `state.changes` is ground truth for execution order. Sub-agents read goal.md for context, the state machine drives execution.
 
 **When you CAN'T plan all changes upfront, that's not a failure — it's the dynamic-planning pattern.** Start with what's certain (the front + the test), append the middle as it reveals itself.
-    ```bash
-    os-stronger goal instructions --goal <goal-name> --json
-    ```
 
 ---
 

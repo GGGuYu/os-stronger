@@ -583,6 +583,20 @@ function getInstructions(projectDir, goalName) {
   // ─── propose_next ───
   if (nextChange.phase === 'skeleton') {
     const prompt = buildProposePrompt(projectDir, state, nextChange);
+    // 动态编排提醒:当下一个要 propose 的是 testchange,且前面已有归档的 normal change,
+    // 说明前置已完成、即将进入整体验收。这正是"追加中间 change"的窗口——提醒主 agent
+    // 在 propose testchange 之前确认是否要先 add 中间 change(决策 14)。
+    const hasArchivedNormal = state.changes.some(c => c.type === 'normal' && c.phase === 'archived');
+    const dynamicHint = (nextChange.type === 'test' && hasArchivedNormal)
+      ? [
+          ``,
+          `🔄 动态编排检查(决策 14):下一个要 propose 的是 testchange "${nextChange.id}"(整体验收)。`,
+          `前面已有 normal change 归档。在 propose testchange 之前,先确认:`,
+          `- 前置 change 的产物是否揭示了还需要新的中间 change?如果有,现在用 \`os-stronger goal change add\` 追加(会自动插到此 testchange 之前),追加后重新运行 instructions。\`change add\` 必须在 propose testchange 之前做——一旦 propose 了 testchange,它就成了当前任务。`,
+          `- 如果确实没有中间 change 要补了,直接 propose testchange。`,
+          `这条只是提醒,不是阻塞——如果你已确认中间 change 都注册完了,忽略此提示继续。`,
+        ]
+      : [];
     return {
       ...baseContext,
       phase: 'proposing',
@@ -605,6 +619,7 @@ function getInstructions(projectDir, goalName) {
           `  os-stronger goal change propose --goal ${state.goalName} --id ${nextChange.id}`,
           `然后重新运行 os-stronger goal instructions --goal ${state.goalName} --json 获取下一步。`,
           `注意：goal 模式下 archive 是自主的、强制的——子 agent 完成任务后必须直接 archive，不等用户确认。`,
+          ...dynamicHint,
         ].join('\n'),
       },
     };

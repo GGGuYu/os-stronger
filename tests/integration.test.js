@@ -243,5 +243,30 @@ test('集成: goal delete 不再崩溃且真删目录(修复 cmdDelete 未定义
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('集成: --before 缺值时报错(不静默降级为智能默认)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-before-'));
+  execSync(`node "${BIN}" goal create --name bv --description "test"`, { cwd: dir, stdio: 'pipe' });
+  execSync(`node "${BIN}" goal change add --goal bv --id c1 --title "一"`, { cwd: dir, stdio: 'pipe' });
+  execSync(`node "${BIN}" goal change add --goal bv --id tc1 --title "测" --type test`, { cwd: dir, stdio: 'pipe' });
+
+  // --before 末尾无值:应非零退出并报错
+  let threw = false;
+  try {
+    execSync(`node "${BIN}" goal change add --goal bv --id c2 --title "二" --before`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) {
+    threw = true;
+    assert.ok(e.status !== 0, '--before 缺值应非零退出');
+    const stderr = e.stderr ? e.stderr.toString() : '';
+    assert.ok(stderr.includes('--before'), '错误信息应提及 --before');
+  }
+  assert.ok(threw, '--before 缺值应抛错');
+
+  // 确认没误加 c2
+  const stateJson = JSON.parse(fs.readFileSync(path.join(dir, 'openspec-goals', 'goal_bv', 'state.json'), 'utf8'));
+  assert.ok(!stateJson.changes.some(c => c.id === 'c2'), 'c2 不应被添加(--before 缺值时)');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
 process.exit(FAIL > 0 ? 1 : 0);

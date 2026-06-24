@@ -187,6 +187,35 @@ runTest('instructions 返回 propose_next（第一个 skeleton change）', () =>
   assert.ok(inst.nextAction.subagentPrompt.includes('Do NOT add a Review task'), 'propose 提示词应禁止加 Review task(嵌套兜底)');
 });
 
+runTest('动态编排提醒:testchange 前 normal change 归档后,propose testchange 含提醒', () => {
+  // 场景:change1 归档后,轮到 testchange_1 propose —— 应提醒主 agent 是否要先 add 中间 change
+  state.createGoal(tmpDir, 'dyn-hint', '动态编排提醒测试');
+  state.addChange(tmpDir, 'dyn-hint', { id: 'change1', title: '前置' });
+  state.addChange(tmpDir, 'dyn-hint', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+  state.markProposed(tmpDir, 'dyn-hint', 'change1');
+  state.markArchived(tmpDir, 'dyn-hint', 'change1');
+
+  const inst = getInstructions(tmpDir, 'dyn-hint');
+  assert.strictEqual(inst.nextAction.type, 'propose_next');
+  assert.strictEqual(inst.nextAction.changeToPropose.id, 'testchange_1');
+  // 应含动态编排提醒(决策 14)
+  assert.ok(inst.nextAction.instruction.includes('动态编排检查'), 'propose testchange 时应含动态编排提醒(决策 14)');
+  assert.ok(inst.nextAction.instruction.includes('change add'), '提醒应引导用 change add 追加中间 change');
+});
+
+runTest('无动态编排提醒:首个 change 是 normal 时(propose 第一个 normal change)', () => {
+  // 场景:还没归档任何 normal change,propose 第一个 normal change —— 不该有动态编排提醒
+  state.createGoal(tmpDir, 'no-hint', '无提醒测试');
+  state.addChange(tmpDir, 'no-hint', { id: 'change1', title: '前置' });
+  state.addChange(tmpDir, 'no-hint', { id: 'testchange_1', title: '测试', type: 'test', testCycle: 1 });
+
+  const inst = getInstructions(tmpDir, 'no-hint');
+  assert.strictEqual(inst.nextAction.type, 'propose_next');
+  assert.strictEqual(inst.nextAction.changeToPropose.id, 'change1');
+  // 此时还没归档 normal change,不该有动态编排提醒
+  assert.ok(!inst.nextAction.instruction.includes('动态编排检查'), '首个 normal change 不应有动态编排提醒');
+});
+
 runTest('instructions 返回 apply_next（proposed change）', () => {
   state.createGoal(tmpDir, 'test-goal', '测试');
   state.addChange(tmpDir, 'test-goal', { id: 'backend', title: '后端' });
