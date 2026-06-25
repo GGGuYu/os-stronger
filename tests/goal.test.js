@@ -710,6 +710,10 @@ runTest('apply_next instruction 包含语义评估不通过', () => {
   assert.ok(instruction.includes('语义评估不通过'), 'apply_next instruction 应提及语义评估不通过');
   assert.ok(instruction.includes('测试失败'), 'apply_next instruction 应提及测试失败');
   assert.ok(instruction.includes('失败类型'), 'apply_next instruction 应要求摘要含失败类型');
+  // 职责划分:change 归档是子 agent 的活,主 agent 不碰归档;goal 归档轮到用户
+  assert.ok(instruction.includes('change 归档是子 agent 的活'), 'apply_next instruction 应厘清 change 归档职责(子 agent)');
+  assert.ok(instruction.includes('主 agent 不碰归档'), 'apply_next instruction 应明确主 agent 不碰归档');
+  assert.ok(instruction.includes('goal 归档'), 'apply_next instruction 应提及 goal 归档轮到用户');
 });
 
 runTest('fix_analysis_needed instruction 按失败类型分叉', () => {
