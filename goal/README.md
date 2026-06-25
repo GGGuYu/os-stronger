@@ -25,7 +25,7 @@ explore（人机对齐目标）
 - **人机边界清晰**：只有 explore 阶段需要人参与，确定 goal 后全自动
 - **交替式流程**：propose → apply → propose → apply，不是先全 propose 再逐个 apply
 - **子 agent fresh context**：每个 propose/apply 都是全新上下文的子 agent，主 agent 只做调度
-- **OpenSpec skill 联动**：子 agent 遵循 openspec-propose / openspec-apply-change / openspec-archive skill 的工作流
+- **OpenSpec skill 联动**：子 agent 遵循 openspec-propose / openspec-apply-change / openspec-archive-change skill 的工作流
 - **自主 archive**：goal 模式下 agent 必须自主归档，不等用户确认——用户只在熔断或完成时回来
 - **CLI 是大脑**：`os-stronger goal instructions --json` 返回下一步该做什么 + 子 agent 提示词 + skill 引用
 - **状态在磁盘**：会话断了？重新跑 `instructions` 就能接上

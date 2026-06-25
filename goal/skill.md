@@ -14,7 +14,7 @@ The CLI (`os-stronger goal`) is your state center — always go through it.
 - **One change per sub-agent**: each sub-agent gets fresh context
 - **CLI is the brain**: `os-stronger goal instructions --json` tells you exactly what to do next
 - **State on disk**: if your session breaks, re-running `instructions` resumes from where you left off
-- **OpenSpec skills are the foundation**: sub-agents MUST follow OpenSpec's own skills (openspec-propose, openspec-apply-change, openspec-archive) when doing their work. Goal orchestration wraps OpenSpec, it does not replace it.
+- **OpenSpec skills are the foundation**: sub-agents MUST follow OpenSpec's own skills (openspec-propose, openspec-apply-change, openspec-archive-change) when doing their work. Goal orchestration wraps OpenSpec, it does not replace it.
 
 ---
 

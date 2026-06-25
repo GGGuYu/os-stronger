@@ -304,7 +304,7 @@ ${ARCHIVE_MANDATORY_NOTE}
    - **⚠️ If you encounter a Review task** (task description contains "Review" and "启动 Review"): **do NOT launch a review sub-agent**. You are a **goal sub-agent** — most platforms forbid nested sub-agents, so launching one would fail or stall. Instead, mark the Review task \`[x]\` and move on. The openspec-apply-change skill's review workflow is overridden here: in goal mode, review is skipped because the goal orchestrator (and its fix→test→熔断 loop) already provides the quality gate.
 2. The LAST task in tasks.md will instruct you to:
    - Run all tests and verify they pass
-   - **Step 1: OpenSpec archive** — run \`openspec archive --change "${change.openspecChangeName}"\` to merge specs into \`openspec/specs/\` and move the change to archive/. Read and follow the \`openspec-archive\` skill in your project's skills directory (e.g., \`.claude/skills/openspec-archive/SKILL.md\`) for the full workflow.
+   - **Step 1: OpenSpec archive** — run \`openspec archive --change "${change.openspecChangeName}"\` to merge specs into \`openspec/specs/\` and move the change to archive/. Read and follow the \`openspec-archive-change\` skill in your project's skills directory (e.g., \`.claude/skills/openspec-archive-change/SKILL.md\`) for the full workflow.
    - **Step 2: Goal archive** — run \`os-stronger goal change archive --goal ${state.goalName} --id ${change.id}\` to update goal state and advance to the next change.
    - **Do NOT ask the user whether to archive.** In goal mode, the agent MUST archive without user confirmation. Both steps are mandatory.
 3. If you encounter a genuine blocker (not a minor issue), report it clearly rather than guessing.
@@ -654,7 +654,7 @@ function getInstructions(projectDir, goalName) {
           `- 派之前：先确认没有其他子 agent 还在跑。如果之前派了一个还没收到回报，**等它返回再派下一个**——两个子 agent 同时操作同一个 change 会冲突。`,
           `- 派之后：起子 agent（fresh context），传入 subagentPrompt，然后**等它回报**——不要检查它在做什么、不要轮询进度、不要跑 os-stronger goal status 看完了没。它返回报告后你才行动。`,
           `子 agent 会按照 openspec-apply-change skill 的工作流读取上下文、实现 tasks、跑测试，`,
-          `然后按照 openspec-archive 惯例自主归档（调用 os-stronger goal change archive）。`,
+          `然后按照 openspec-archive-change 惯例自主归档（调用 os-stronger goal change archive）。`,
           `子 agent 返回后，重新运行 os-stronger goal instructions --goal ${state.goalName} --json 获取下一步。`,
           `注意：goal 模式下 archive 是自主的、强制的——子 agent 完成任务后必须直接 archive，不等用户确认。`,
           `如果子 agent 报告失败（语义评估不通过 或 测试失败），运行:`,
