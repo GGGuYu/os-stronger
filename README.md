@@ -163,6 +163,25 @@ init 后项目里会多出：
 └── ...（其他工具的 skills 目录同理）
 ```
 
+## 兼容性
+
+os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工作，所以对 OpenSpec 版本有依赖。我们定期在以下版本上验证，保证 patch 锚点匹配、goal 用的 CLI/JSON 字段一致。
+
+| OpenSpec 版本 | 状态 | 验证时间 |
+|---------------|------|----------|
+| 1.4.1 | ✅ 已验证 | 2026-06 |
+| < 1.4 | ⚠️ 未验证（workspace 模式字段 `artifactPaths.*.resolvedOutputPath` 可能缺失，goal 流程不兼容） | — |
+| 其他 | ⚠️ 未验证 | — |
+
+**验证什么**:
+- `os-stronger init` 的 patch 注入能在 `openspec-apply-change`、`openspec-propose` 上命中锚点（分层降级到 L3 也算）
+- `openspec status --change <name> --json` 返回的字段（`changeRoot`、`artifactPaths.*.resolvedOutputPath`）和注入文本里引用的一致
+- skill 名 `openspec-archive-change`（1.4.x 起；更早版本可能是别的名字）
+
+**用未验证版本怎么办**:大概率能用，但若 patch 报 `pattern-not-found` 或 goal 流程里 CLI 输出对不上，多半是 OpenSpec 版本变了。欢迎反馈版本号 + 报错信息，我们验证后会更新上面的清单。
+
+> 设计选择：os-stronger **适配** OpenSpec，不集成某个固定版本进来。原因：用户可能已装好自己偏好的 OpenSpec 版本，集成会冲突且堵住升级；os-stronger 定位是增强层而非分发渠道。见 [AGENTS.md](AGENTS.md) 的兼容性策略。
+
 ## 限制
 
 - **纯提示词约束**：没有 hook，agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的，同样的机制。review 主触发靠 tasks.md 里的显式 Review task，all_done 分支仅作兜底
@@ -170,7 +189,7 @@ init 后项目里会多出：
 - **非 git 项目 review 覆盖有限**：review 子 agent 用 `git diff HEAD` 看改动，非 git 项目或改动已 commit 时需直接读 tasks.md 涉及的文件（注入文本已含此兜底指导）
 - **workspace 模式**：OpenSpec 1.4+ 的 workspace 模式 changes 目录不在 `openspec/changes/`。注入文本已改为先跑 `openspec status --json` 拿路径，不写死
 - **OpenSpec 更新后需重跑**：`openspec update` 会覆盖 skill 文件，之后跑一次 `os-stronger init` 重新注入。注意：如果误跑 `--restore`，检测到文件无 os-stronger 标记会自动跳过并删除过期 backup，不会降级
-- **嵌套子 agent**：goal + review 同时启用时，apply 子 agent 需要起 review 子 agent（嵌套）。部分平台不支持嵌套子 agent，建议不同时启用 goal 和 review
+- **嵌套子 agent（已解决）**：goal + review 同时启用时，apply 子 agent 遇到 Review task 理论上要起 review 子 agent（嵌套），部分平台不支持。已加双层兜底——goal 侧 propose 子 agent 不加 Review task、apply 子 agent 遇到 Review task 直接标 `[x]` 跳过；review 侧 STEP -1 自检识别自己是子 agent 就静默跳过。goal + review 可同时启用，goal 模式下 review 静默失效（goal 的 fix→test 循环本身是质量门，不依赖 review）
 - **goal 串行执行**：goal 不支持并行 change，batch=1。这是稳健性选择，后续可扩展
 
 ## 扩展：加新增强

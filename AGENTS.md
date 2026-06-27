@@ -312,7 +312,30 @@ patches: {
 
 ---
 
-## 七、已知限制
+## 七、兼容性策略
+
+os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工作，对 OpenSpec 版本有依赖。两个层面的耦合：
+
+1. **patch 锚点文本匹配**——在 `openspec-apply-change/SKILL.md` 等文件里找 `**Handle states:**`、`all_done`、`**Steps**` 等锚点注入。靠分层降级(决策 7)兜：只要关键词在就能 patch，关键词全消失才 `pattern-not-found`。
+2. **goal 用的 CLI/JSON 字段**——`openspec status --change --json` 的 `artifactPaths.*.resolvedOutputPath`、skill 名 `openspec-archive-change` 等。这些是 OpenSpec 对外接口，版本间可能变。
+
+**适配而非集成**(设计选择)：os-stronger 不把某个 OpenSpec 版本打包进来、不替用户 `openspec init`。原因：
+- 用户可能已装好自己偏好的 OpenSpec 版本，集成会冲突且堵住升级
+- 替用户初始化 OpenSpec = 越界吃 OpenSpec 的职责(skill 生成/目录结构/配置)，重复劳动且必然滞后
+- 违背原则 5(零依赖)。OpenSpec 1.4.1 unpacked 1.3MB + 10 依赖，集成进来 os-stronger 不再轻量
+- 定位：os-stronger 是增强层，面向**已有 OpenSpec 的项目**，不是从零分发 OpenSpec
+
+**验证清单**(维护者定期更新)：在 README 的"## 兼容性"节列出已验证版本。当前已验证 1.4.1(2026-06)。验证步骤：
+1. 装该版本 OpenSpec，跑一遍 `os-stronger init`——确认 patch 全部命中(不报 `pattern-not-found`)
+2. 跑一遍 goal 流程——确认 `openspec status --change --json` 字段、skill 名(`openspec-archive-change`)对得上
+3. 通过则更新 README 清单；失败则修 patch 锚点 / CLI 字段引用，再更新
+
+**红线**：
+- 不要集成 OpenSpec 进来(违背定位 + 原则 5)。
+- 不要让 README 的兼容性清单和实际验证脱节——验证成功就更新，失败就修 + 标注。
+- OpenSpec 大改导致 patch 全断时，优先补分层降级的新锚点(决策 7)，而非退回精确匹配。
+
+## 八、已知限制
 
 1. **纯提示词约束**:没有 hook,agent 可能跳过增强步骤。但 OpenSpec 自身就是靠 agent 遵循 SKILL.md 跑起来的,同样的机制,同样的可靠性。review 的主触发靠 tasks.md 里的显式 Review task(CLI 直接推到 agent 面前),all_done 分支仅作兜底。
 
@@ -336,7 +359,7 @@ patches: {
 
 ---
 
-## 八、维护红线速查
+## 九、维护红线速查
 
 | 想做 | 能不能 | 为什么 |
 |------|--------|--------|
@@ -360,7 +383,7 @@ patches: {
 
 ---
 
-## 九、相关文档
+## 十、相关文档
 
 - `README.md` — 面向用户的安装/使用说明
 - OpenSpec 源码 — `openspec init` 的实现(`@fission-ai/openspec/dist/core/init.js`),理解 OpenSpec 如何生成 skill 文件
