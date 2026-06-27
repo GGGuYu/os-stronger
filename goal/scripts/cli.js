@@ -99,6 +99,7 @@ function cmdChange(args) {
     case 'archive': return cmdChangeArchive(args.slice(1));
     case 'block':   return cmdChangeBlock(args.slice(1));
     case 'unblock': return cmdChangeUnblock(args.slice(1));
+    case 'delete':  return cmdChangeDelete(args.slice(1));
     default:
       err(`未知 change 子命令: ${action}`);
       return 1;
@@ -234,6 +235,30 @@ function cmdChangeUnblock(args) {
     const change = state.unblockChange(projectDir, goalName, changeId);
     if (json) printJson({ ok: true, change });
     else ok(`Change "${changeId}" 已解除受阻`);
+    return 0;
+  } catch (e) {
+    if (json) printJson({ ok: false, error: e.message });
+    else err(e.message);
+    return 1;
+  }
+}
+
+function cmdChangeDelete(args) {
+  const projectDir = process.cwd();
+  const goalName = getArg(args, '--goal');
+  const changeId = getArg(args, '--id');
+  const json = hasFlag(args, '--json');
+
+  if (!goalName || !changeId) { err('--goal 和 --id 必填'); return 1; }
+
+  try {
+    state.deleteChange(projectDir, goalName, changeId);
+    if (json) {
+      printJson({ ok: true, deleted: true, changeId });
+    } else {
+      ok(`Change "${changeId}" 已从 goal "${goalName}" 删除`);
+      info(`  (仅 skeleton 阶段可删——已 proposed/archived 的 change 在 OpenSpec 侧有残留,删不干净,故拒绝)`);
+    }
     return 0;
   } catch (e) {
     if (json) printJson({ ok: false, error: e.message });
@@ -473,6 +498,7 @@ function printGoalHelp() {
   console.log('  os-stronger goal change archive --goal <name> --id <id>');
   console.log('  os-stronger goal change block --goal <name> --id <id> --reason "..."');
   console.log('  os-stronger goal change unblock --goal <name> --id <id>');
+  console.log('  os-stronger goal change delete --goal <name> --id <id>  (仅 skeleton 阶段可删)');
   console.log('  os-stronger goal instructions --goal <name> --json');
   console.log('  os-stronger goal test-failed --goal <name> --test-change <id> --summary "..."');
   console.log('  os-stronger goal resume --goal <name>');

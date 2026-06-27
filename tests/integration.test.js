@@ -268,5 +268,31 @@ test('集成: --before 缺值时报错(不静默降级为智能默认)', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('集成: goal change delete 删除 skeleton + 拒绝删除 proposed', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'os-stronger-changedel-'));
+  execSync(`node "${BIN}" goal create --name cd --description "test"`, { cwd: dir, stdio: 'pipe' });
+  execSync(`node "${BIN}" goal change add --goal cd --id c1 --title "一"`, { cwd: dir, stdio: 'pipe' });
+  execSync(`node "${BIN}" goal change add --goal cd --id c2 --title "二"`, { cwd: dir, stdio: 'pipe' });
+
+  // 删 skeleton c2 —— 成功
+  execSync(`node "${BIN}" goal change delete --goal cd --id c2`, { cwd: dir, stdio: 'pipe' });
+  const st = JSON.parse(fs.readFileSync(path.join(dir, 'openspec-goals', 'goal_cd', 'state.json'), 'utf8'));
+  assert.ok(!st.changes.some(c => c.id === 'c2'), 'delete 后 c2 应不在');
+  assert.ok(st.changes.some(c => c.id === 'c1'), 'c1 应仍在');
+
+  // c1 propose 后再 delete —— 应非零退出
+  execSync(`node "${BIN}" goal change propose --goal cd --id c1`, { cwd: dir, stdio: 'pipe' });
+  let threw = false;
+  try {
+    execSync(`node "${BIN}" goal change delete --goal cd --id c1`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) {
+    threw = true;
+    assert.ok(e.status !== 0, 'proposed 的 change 删除应非零退出');
+  }
+  assert.ok(threw, '删除 proposed change 应失败');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 console.log('\n结果: ' + PASS + ' 通过, ' + FAIL + ' 失败');
 process.exit(FAIL > 0 ? 1 : 0);

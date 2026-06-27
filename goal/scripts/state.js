@@ -351,6 +351,31 @@ function unblockChange(projectDir, goalName, changeId) {
   return change;
 }
 
+// 删除 change 骨架(仅 skeleton 阶段安全)。
+// proposed/archived 的 change 在 OpenSpec 侧已有目录(proposed)或已 merge specs(archived),
+// 删它们会留下孤儿目录 / 污染过的 openspec/specs/,删不干净。故只允许删 skeleton。
+// 已 proposed 的想放弃——走 blockChange 重新规划,或让它失败进 fix/熔断路径,而非强删。
+function deleteChange(projectDir, goalName, changeId) {
+  const state = loadState(projectDir, goalName);
+  if (!state) throw new Error(`Goal "${goalName}" 不存在`);
+
+  const idx = state.changes.findIndex(c => c.id === changeId);
+  if (idx === -1) throw new Error(`Change "${changeId}" 不存在`);
+
+  const change = state.changes[idx];
+  if (change.phase !== 'skeleton') {
+    throw new Error(
+      `Change "${changeId}" 当前是 "${change.phase}" 阶段,不能删除。` +
+      `\n只允许删除 skeleton(未动过)的 change——proposed/archived 的 change 在 OpenSpec 侧已有目录或已合并 specs,删不干净。` +
+      `\n如果这个 change 方向不对:让当前 change 走完(block 或让它失败进 fix/熔断),再用重新拆好的 change 替代,而非强删一个做了一半的 change。`
+    );
+  }
+
+  state.changes.splice(idx, 1);
+  saveState(projectDir, goalName, state);
+  return true;
+}
+
 // ─── Fix Flow ───
 
 function testFailed(projectDir, goalName, testChangeId, summary) {
@@ -523,6 +548,7 @@ module.exports = {
   markArchived,
   blockChange,
   unblockChange,
+  deleteChange,
   testFailed,
   resumeGoal,
   isCircuitBroken,

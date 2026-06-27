@@ -142,6 +142,54 @@ runTest('addChange 无 testchange 时 normal change push 末尾(兼容旧行为)
   assert.deepStrictEqual(ids, ['change1', 'change2'], '无 testchange 时应 push 末尾');
 });
 
+runTest('deleteChange:可删 skeleton 阶段 change', () => {
+  state.createGoal(tmpDir, 'del-goal', '删除测试');
+  state.addChange(tmpDir, 'del-goal', { id: 'c1', title: '一' });
+  state.addChange(tmpDir, 'del-goal', { id: 'c2', title: '二' });
+  state.addChange(tmpDir, 'del-goal', { id: 'tc1', title: '测', type: 'test', testCycle: 1 });
+
+  // 删中间的 c2(还是 skeleton)
+  assert.ok(state.deleteChange(tmpDir, 'del-goal', 'c2'));
+
+  const st = state.loadState(tmpDir, 'del-goal');
+  assert.deepStrictEqual(st.changes.map(c => c.id), ['c1', 'tc1'], '删后应剩 c1, tc1');
+});
+
+runTest('deleteChange:proposed 阶段拒绝删除', () => {
+  state.createGoal(tmpDir, 'del-prop', 'proposed 拒删');
+  state.addChange(tmpDir, 'del-prop', { id: 'c1', title: '一' });
+  state.markProposed(tmpDir, 'del-prop', 'c1');
+
+  assert.throws(
+    () => state.deleteChange(tmpDir, 'del-prop', 'c1'),
+    /proposed.*不能删除|不能删除.*proposed/,
+  );
+  const st = state.loadState(tmpDir, 'del-prop');
+  assert.ok(st.changes.some(c => c.id === 'c1'), 'c1 应仍在(proposed 不可删)');
+});
+
+runTest('deleteChange:archived 阶段拒绝删除', () => {
+  state.createGoal(tmpDir, 'del-arch', 'archived 拒删');
+  state.addChange(tmpDir, 'del-arch', { id: 'c1', title: '一' });
+  state.markProposed(tmpDir, 'del-arch', 'c1');
+  state.markArchived(tmpDir, 'del-arch', 'c1');
+
+  assert.throws(
+    () => state.deleteChange(tmpDir, 'del-arch', 'c1'),
+    /archived.*不能删除|不能删除.*archived/,
+  );
+});
+
+runTest('deleteChange:不存在的 change 报错', () => {
+  state.createGoal(tmpDir, 'del-missing', '不存在');
+  state.addChange(tmpDir, 'del-missing', { id: 'c1', title: '一' });
+
+  assert.throws(
+    () => state.deleteChange(tmpDir, 'del-missing', 'nope'),
+    /不存在/,
+  );
+});
+
 runTest('markProposed 更改 phase', () => {
   state.createGoal(tmpDir, 'test-goal', '测试');
   state.addChange(tmpDir, 'test-goal', { id: 'backend', title: '后端' });

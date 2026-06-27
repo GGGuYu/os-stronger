@@ -100,6 +100,11 @@ os-stronger goal change propose --goal <name> --id <id>
 # 标记 change 进入 archived（apply 子 agent 最后一个 task 调用，自主归档）
 os-stronger goal change archive --goal <name> --id <id>
 
+# 删除 change 骨架（动态编排时删掉不想要的未动 change）
+os-stronger goal change delete --goal <name> --id <id>
+#   仅 skeleton 阶段可删。已 proposed/archived 的 change 在 OpenSpec 侧有目录/已合并 specs，
+#   删不干净故拒绝——方向不对就让当前 change block 或走失败进 fix/熔断，再重新拆，而非强删。
+
 # test change 失败时调用
 os-stronger goal test-failed --goal <name> --test-change <id> --summary "失败摘要"
 

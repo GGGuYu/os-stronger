@@ -15,6 +15,7 @@ The CLI (`os-stronger goal`) is your state center — always go through it.
 - **CLI is the brain**: `os-stronger goal instructions --json` tells you exactly what to do next
 - **State on disk**: if your session breaks, re-running `instructions` resumes from where you left off
 - **OpenSpec skills are the foundation**: sub-agents MUST follow OpenSpec's own skills (openspec-propose, openspec-apply-change, openspec-archive-change) when doing their work. Goal orchestration wraps OpenSpec, it does not replace it.
+- **You are a live decision-maker, not a sequential runner**: the change plan and goal.md **evolve** as work proceeds. You don't lock the plan at registration and blindly execute it. When a change's artifacts reveal the plan is wrong or incomplete, you **adjust the orchestration**: append new changes (`change add`), drop obsolete unstarted ones (`change delete` on skeleton changes only), and update goal.md's `## 宏观架构` to reflect what you now know. Details in "Dynamic change planning" below.
 
 ---
 
@@ -131,6 +132,30 @@ os-stronger goal change add --goal <goal-name> --id change3 --title "..." --befo
 > goal.md's change plan is a **living document** — update its `## 宏观架构` section as each change completes (turn "tentative" into "actual", note new module relationships). But remember: goal.md is design intent, `state.changes` is ground truth for execution order. Sub-agents read goal.md for context, the state machine drives execution.
 
 **When you CAN'T plan all changes upfront, that's not a failure — it's the dynamic-planning pattern.** Start with what's certain (the front + the test), append the middle as it reveals itself.
+
+### When the plan turns out wrong mid-way
+
+Orchestration is not "register once, then auto-run". You are judging each change's outcome and re-planning. Two cases:
+
+- **A planned-but-unstarted change (skeleton) is now obsolete** — e.g., a prior change's artifact made it redundant, or your decomposition was wrong. Drop it cleanly:
+  ```bash
+  os-stronger goal change delete --goal <name> --id <obsolete-skeleton-change>
+  # Only skeleton changes can be deleted. Already-proposed/archived changes have
+  # left files on the OpenSpec side (or merged specs) — deleting them would leave
+  # garbage you can't clean. That's intentional: don't try to surgically delete a
+  # half-done change. Let it finish (or block it) and re-plan instead.
+  ```
+  Then update goal.md's `## 宏观架构` to note what changed and why.
+
+- **A change is already in progress (proposed) but the direction is wrong** — you can't `delete` it (it's past skeleton). Options, in order of preference:
+  1. **Let the sub-agent finish and let the test change catch it** — if the wrong direction would fail acceptance criteria, the test change's semantic evaluation + tests will surface it and route into the fix→test→熔断 loop. No manual intervention needed.
+  2. **Block it yourself** if it's clearly harmful and shouldn't continue:
+     ```bash
+     os-stronger goal change block --goal <name> --id <change-id> --reason "方向错了:..."
+     ```
+     Then re-plan: append corrected changes, update goal.md.
+
+  **Anti-pattern**: trying to `delete` a proposed/archived change, or silently rewriting state by hand. The state machine and OpenSpec side can't be cleanly rewound once a change has files. Re-plan forward, don't rewind.
 
 ---
 
