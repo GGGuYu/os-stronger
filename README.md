@@ -64,19 +64,18 @@ os-stronger --version     # 查看版本
 | **high** | 3 | 严格：属实的尽量修（不值得也**可**不修） | 正确性为主，小问题可不修；第 3 轮熔断 |
 | **max** | 3 | 严格 **+ 起两个独立 review 子 agent**（并行优先否则串行），主 agent 融合 two findings 交叉确认 | 单子 agent；第 3 轮熔断 |
 
-tier 只写在 Review task 文字里（`- [ ] Review [tier=high]: ...`），apply 时解析，纯提示词无 CLI/state。goal 模式下 review 仍静默跳过（嵌套兜底），档位不生效。
+tier 只写在 Review task 文字里（`- [ ] Review [tier=high]: ...`），apply 时解析，纯提示词无 CLI/state。goal 与 review 互斥安装（init 时二选一），不共存。
 
 **工作流**：
 
-1. **STEP -1 嵌套自检**：识别自己是子 agent（goal 模式等）→ 静默跳过 review，不起子 agent
-2. **STEP 0 tier 解析 + 熔断**：从 Review task 文字解析 `[tier=XXX]` → `maxCycle = low?2:3`。扫 tasks.md，`lastCompleted >= maxCycle` → 询问用户是否 archive，不启动子 agent
-3. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
-4. 写需求总结到 `.os-stronger/requirement-summary.md`
-5. 起子 agent（max 档 cycle 1 起两个），先跑 `openspec status --change <name> --json` 拿文件路径（不写死路径，兼容 workspace 模式），甩路径给子 agent（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
-6. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings（max 档 cycle 1 主 agent 融合两个子 agent 的 findings，去重交叉）
-7. 主 agent 独立判断每条（按 tier 严格度）：是否属实？是否值得现在立即修？
-8. 属实且值得修的 → 建 `Review N Fix - <desc>` task
-9. `currentCycle < maxCycle` 有 fix → 修完加 `Review [tier=...] N+1` task（同 tier 贯穿）；`currentCycle === maxCycle` 有 fix → 修完熔断，不加 N+1；无 fix → 询问用户是否 archive
+1. **STEP 0 tier 解析 + 熔断**：从 Review task 文字解析 `[tier=XXX]` → `maxCycle = low?2:3`。扫 tasks.md，`lastCompleted >= maxCycle` → 询问用户是否 archive，不启动子 agent
+2. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
+3. 写需求总结到 `.os-stronger/requirement-summary.md`
+4. 起子 agent（max 档 cycle 1 起两个），先跑 `openspec status --change <name> --json` 拿文件路径（不写死路径，兼容 workspace 模式），甩路径给子 agent（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
+5. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings（max 档 cycle 1 主 agent 融合两个子 agent 的 findings，去重交叉）
+6. 主 agent 独立判断每条（按 tier 严格度）：是否属实？是否值得现在立即修？
+7. 属实且值得修的 → 建 `Review N Fix - <desc>` task
+8. `currentCycle < maxCycle` 有 fix → 修完加 `Review [tier=...] N+1` task（同 tier 贯穿）；`currentCycle === maxCycle` 有 fix → 修完熔断，不加 N+1；无 fix → 询问用户是否 archive
 
 findings 不强制——主 agent 有最终决定权，任何档（含 CRITICAL）均可忽略。档位只调"修的倾向"，不改成命令式。**archive 决定权在用户**，agent 只能询问不能自动做。
 
@@ -200,7 +199,7 @@ os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工
 - **非 git 项目 review 覆盖有限**：review 子 agent 用 `git diff HEAD` 看改动，非 git 项目或改动已 commit 时需直接读 tasks.md 涉及的文件（注入文本已含此兜底指导）
 - **workspace 模式**：OpenSpec 1.4+ 的 workspace 模式 changes 目录不在 `openspec/changes/`。注入文本已改为先跑 `openspec status --json` 拿路径，不写死
 - **OpenSpec 更新后需重跑**：`openspec update` 会覆盖 skill 文件，之后跑一次 `os-stronger init` 重新注入。注意：如果误跑 `--restore`，检测到文件无 os-stronger 标记会自动跳过并删除过期 backup，不会降级
-- **嵌套子 agent（已解决）**：goal + review 同时启用时，apply 子 agent 遇到 Review task 理论上要起 review 子 agent（嵌套），部分平台不支持。已加双层兜底——goal 侧 propose 子 agent 不加 Review task、apply 子 agent 遇到 Review task 直接标 `[x]` 跳过；review 侧 STEP -1 自检识别自己是子 agent 就静默跳过。goal + review 可同时启用，goal 模式下 review 静默失效（goal 的 fix→test 循环本身是质量门，不依赖 review）
+- **goal 与其他增强互斥**：goal + review/skill-align 同时启用会往同一个 openspec skill 文件注入多套"起子 agent"指令，弱模型分不清该起什么子 agent，实测冲突。init 时 goal 与其他增强二选一（交互式有联动、`--enhancements` 静默路径有校验）。goal 用自己的 fix→test→熔断循环做质量门，不依赖 review；review 服务于不用 goal 的 standalone 场景
 - **goal 串行执行**：goal 不支持并行 change，batch=1。这是稳健性选择，后续可扩展
 
 ## 扩展：加新增强

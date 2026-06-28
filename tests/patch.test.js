@@ -71,10 +71,6 @@ test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
   assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
   assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
-  // 嵌套兜底: STEP -1 子 agent 自检应存在(防 goal + review 嵌套崩)
-  assert.ok(result.content.includes('STEP -1'), '应含 STEP -1 嵌套自检');
-  assert.ok(result.content.includes('NESTED SUB-AGENT CHECK'), '应含嵌套子 agent 检查标题');
-  assert.ok(result.content.includes('silently skipped'), '应说明子 agent 静默跳过 review');
   // 档位化(duration): tier 解析 + maxCycle + 分档严格度 + Max 双子 agent
   assert.ok(result.content.includes('[tier='), 'review workflow 应含 [tier= 解析标识');
   assert.ok(result.content.includes('TIER PARSE'), 'review workflow 应含 STEP 0 tier 解析步骤');

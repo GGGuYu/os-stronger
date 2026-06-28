@@ -491,10 +491,7 @@ testchange_N apply → 失败
 
 7. **fix change 类型误注册防御**：`addChange` 在 `fixFlow.active` 时检查新 change 的 type 是否为 `fix`，如果不是会拋警告。防止主 agent 注册 fix change 时写错 type 导致 `archiveFixChange` 不触发、`pendingFixChanges` 不清空、goal 卡死。
 
-8. **嵌套子 agent 问题（已解决,双层兜底）**:goal 的 apply 子 agent 遵循 `openspec-apply-change` skill,而 review 增强已 patch 这个 skill,注入了"起 review 子 agent"的指令——这意味着 apply 子 agent 需要启动自己的子 agent(嵌套),部分平台不支持(max_depth=1)。**已加双层兜底,goal + review 可同时启用**:
-   - **goal 侧(源头)**:propose 子 agent 提示词明确"Do NOT add a Review task"(根本不加 Review task);apply 子 agent 提示词明确"遇到 Review task 直接标 `[x]` 跳过,do NOT launch a review sub-agent"。goal 模式下 review 静默失效,因为 goal 的 fix→test→熔断循环本身就是质量门,不依赖 review。
-   - **review patch 侧(兜底)**:`REVIEW_WORKFLOW_BLOCK` 顶部加 STEP -1 NESTED SUB-AGENT CHECK,识别自己是子 agent(被显式标记为 sub-agent,或无 spawn-subagent 能力)就静默跳过。处理"用户单独用 OpenSpec+review 且被嵌套调用"的边缘情况。
-   - 两层防御保证:即使 propose 子 agent 没听话加了 Review task,apply 子 agent 也会跳过;即使 review patch 被单独嵌套调用(非 goal 场景),STEP -1 也会兜住。`ARCHIVE_MANDATORY_NOTE` 仍覆盖 review 的"问用户是否 archive"行为(决策 10)。
+8. **goal 与其他增强互斥**(原"嵌套子 agent"问题的根治):goal 的 apply 子 agent 遵循 `openspec-apply-change` skill,而 review 增强若也 patch 这个 skill,会注入"起 review 子 agent"指令——apply 子 agent 读到多套互相矛盾的子 agent 指令(goal 的 + review 的 + skill-align 的),弱模型分不清该起什么子 agent,实测冲突。**之前用 STEP -1 嵌套自检 + goal 侧"不加 Review task"做提示词兜底,但弱模型不可靠**。现改为**互斥安装**:`init.js` 的 `checkMutex` + `multiSelect` 联动强制 goal 与 review/skill-align 二选一,从源头不让多套子 agent 指令进同一个 skill 文件。review 增强因此删除了 STEP -1 那套复杂逻辑,goal 提示词也删了"不加 Review task / 遇到 Review task 跳过"两段——互斥后不存在嵌套场景。goal 用自己的 fix→test→熔断循环做质量门(不依赖 review);review 服务于不用 goal 的 standalone OpenSpec 场景。`ARCHIVE_MANDATORY_NOTE` 仍覆盖 review 的"问用户是否 archive"行为(决策 10,但 goal 不与 review 共存时此覆盖无关紧要)。
 
 9. **失败的 test change 在 OpenSpec 侧残留**：语义评估或测试失败时，apply 子 agent 在 archive task 之前就 bail 了。state 侧通过 test-failed + blockReason 处理，后续某个 test change 通过时 archiveTestChange 会把所有非 archived 的 test change 一次性标 archived。但 OpenSpec 侧没人对失败的 testchange 跑 `openspec archive`，它的文件夹一直留在 `openspec/changes/`。功能上不坏（getCompletedArtifacts 用 endsWith 匹配 archive 目录再 fallback 到活跃目录），但 goal 完成后 `openspec/changes/` 会残留若干没归档的 test change 文件夹。语义评估失败比测试失败更早 bail（连测试代码都没写），所以这个残留更常见。后续可由最后一个 test change 的 apply 子 agent 在 archive 阶段顺带清理。
 

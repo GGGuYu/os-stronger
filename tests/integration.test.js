@@ -204,7 +204,50 @@ test('集成: --enhancements typo 报错退出,不修改 .gitignore', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// ─── restore 清理 .gitignore ───
+test('集成: goal 与 review 互斥(--enhancements 同时指定报错)', () => {
+  const dir = setupFakeProject();
+  let exitCode = 0;
+  let stderr = '';
+  try {
+    execSync(`node "${BIN}" init --enhancements goal,review`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) { exitCode = e.status; stderr = e.stderr ? e.stderr.toString() : ''; }
+  assert.ok(exitCode !== 0, 'goal+review 互斥应非 0 退出');
+  assert.ok(stderr.includes('互斥'), '错误信息应提及互斥');
+  // skill 文件不应被修改
+  const apply = fs.readFileSync(path.join(dir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'), 'utf8');
+  assert.ok(!apply.includes('OS-STRONGER'), '互斥拒绝时不应有 patch 痕迹');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('集成: goal 与 skill-align 互斥(--enhancements 同时指定报错)', () => {
+  const dir = setupFakeProject();
+  let exitCode = 0;
+  try {
+    execSync(`node "${BIN}" init --enhancements goal,skill-align`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) { exitCode = e.status; }
+  assert.ok(exitCode !== 0, 'goal+skill-align 互斥应非 0 退出');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('集成: 单独 goal 不受互斥影响(正常 patch)', () => {
+  const dir = setupFakeProject();
+  let exitCode = 0;
+  try {
+    execSync(`node "${BIN}" init --enhancements goal`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) { exitCode = e.status; }
+  assert.strictEqual(exitCode, 0, '单独 goal 应正常 init');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('集成: review+skill-align 不互斥(可共存,都不是 goal)', () => {
+  const dir = setupFakeProject();
+  let exitCode = 0;
+  try {
+    execSync(`node "${BIN}" init --enhancements review,skill-align`, { cwd: dir, stdio: 'pipe' });
+  } catch (e) { exitCode = e.status; }
+  assert.strictEqual(exitCode, 0, 'review+skill-align 不互斥应正常 init');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 test('集成: restore 清理 .gitignore 里的 os-stronger 规则', () => {
   const dir = setupFakeProject();
   // 先写一个有内容的 .gitignore

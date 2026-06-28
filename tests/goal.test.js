@@ -231,8 +231,6 @@ runTest('instructions 返回 propose_next（第一个 skeleton change）', () =>
   assert.ok(inst.nextAction.subagentPrompt);
   // 决策 13: propose 提示词应要求子 agent 读 goal.md 全文(不只验收标准)
   assert.ok(inst.nextAction.subagentPrompt.includes('读 goal.md 全文'), 'propose 提示词应要求读 goal.md 全文(决策 13)');
-  // 嵌套兜底: goal 子 agent 不加 Review task(避免嵌套子 agent)
-  assert.ok(inst.nextAction.subagentPrompt.includes('Do NOT add a Review task'), 'propose 提示词应禁止加 Review task(嵌套兜底)');
 });
 
 runTest('动态编排提醒:testchange 前 normal change 归档后,propose testchange 含提醒', () => {
@@ -272,8 +270,6 @@ runTest('instructions 返回 apply_next（proposed change）', () => {
   const inst = getInstructions(tmpDir, 'test-goal');
   assert.strictEqual(inst.nextAction.type, 'apply_next');
   assert.strictEqual(inst.nextAction.changeToApply.id, 'backend');
-  // 嵌套兜底: goal apply 子 agent 遇到 Review task 应跳过,不起子 agent
-  assert.ok(inst.nextAction.subagentPrompt.includes('do NOT launch a review sub-agent'), 'apply 提示词应禁止起 review 子 agent(嵌套兜底)');
 });
 
 runTest('instructions 返回 done（全部 archived，含 test change）', () => {

@@ -229,8 +229,7 @@ module.exports = {
 - `openspec-apply-change`: L1 `**Handle states:**` 整块之前(不劈开列表) → L2 含 `state: "all_done"` 的行之前 → L3 含 state+all_done 的行之前,在 all_done 行**之前插入**(保留原行作兜底)
 - `openspec-propose`: 末尾追加,要求先 AskUserQuestion 问档位、再 tasks.md 末尾加带 `[tier=...]` 的 Review task
 
-**注入的 review workflow**(STEP -1 嵌套自检 → STEP 0 tier 解析+熔断 → 0a-f):
-- **STEP -1 — 嵌套子 agent 自检**:识别自己是子 agent(goal 模式等)就静默跳过 review,标 `[x]` 不起子 agent。防 goal+review 嵌套崩。
+**注入的 review workflow**(STEP 0 tier 解析+熔断 → 0a-f):
 - **STEP 0 — tier 解析 + 熔断(最高优先级)**:从当前 Review task 文字解析 `[tier=XXX]` → `maxCycle = (low?2:3)`。扫 tasks.md 找 `lastCompleted`。`lastCompleted >= maxCycle` → STOP,标 `[x]`,**询问用户**是否 archive。硬上限,无例外。无 tier 标识 → 默认 low(向后兼容)。
 - 0a. 检查 `.os-stronger/review-guide.md` 存在性(不读内容)
 - a. 写需求总结到 `.os-stronger/requirement-summary.md`
@@ -357,7 +356,7 @@ os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工
 
 7. **restore 降级防护**:如果 OpenSpec update 覆盖了 skill 文件（文件不含 os-stronger marker），restore 会跳过恢复并删除过期 backup，避免把新版本降级回旧版本。但用户可能困惑为什么 restore "没生效"——实际是正确行为。
 
-8. **嵌套子 agent**:goal + review 同时启用时,apply 子 agent 遇到 Review task 需要起 review 子 agent(嵌套),部分平台 max_depth=1 不支持。**已加双层兜底,可同时启用**:(a) goal 侧——propose 子 agent 提示词明确"不加 Review task",apply 子 agent 提示词明确"遇到 Review task 直接标 `[x]` 跳过,不起子 agent";(b) review patch 侧——`REVIEW_WORKFLOW_BLOCK` 顶部加 STEP -1 子 agent 自检,识别自己是子 agent(被显式标记为 sub-agent,或无 spawn-subagent 能力)就静默跳过 review。两层防御保证:即使 propose 子 agent 没听话加了 Review task,apply 子 agent 也会跳过;即使 review patch 被单独嵌套调用(非 goal 场景),STEP -1 也会兜住。goal 模式下 review 静默失效,不报错不阻塞——goal 的 fix→test→熔断循环本身就是质量门,不依赖 review。
+8. **goal 与其他增强互斥**(原"嵌套子 agent"问题的根治):goal + review/skill-align 同时启用时,会往同一个 openspec skill 文件里塞多套"起子 agent"指令(goal 注入"你是 PROPOSE/APPLY 子 agent"、review 注入"遇到 Review task 起子 agent"、skill-align 注入"问用户用哪些 skill"),弱模型上下文一长就混乱——分不清自己该起什么子 agent,甚至错误给自己派活。**之前用 STEP -1 嵌套自检做提示词层兜底,但弱模型不可靠**。现改为**互斥安装**:init 时选了 goal 就不能选其他,反之亦然,从源头不让多套子 agent 指令进同一个 skill 文件。互斥校验在 `init.js` 的 `checkMutex` + `multiSelect` 联动两处兜(静默 `--enhancements` 路径 + 交互式)。review 增强因此**删除了 STEP -1 嵌套自检那套复杂逻辑**——互斥后不存在嵌套场景,不需要。goal 与 review 的质量门职责划分:goal 用自己的 fix→test→熔断循环(不依赖 review);review 服务于不用 goal 的 standalone OpenSpec 场景。
 
 9. **uninstall 顺序**:`--uninstall` 会先卸载全局 CLI，用户之后无法跑 `--restore`。正确顺序是先在各项目 restore 再卸载。CLI 提示已说明但无法强制。
 

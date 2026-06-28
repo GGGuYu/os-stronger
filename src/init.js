@@ -13,6 +13,33 @@ const enhancements = {
   'goal':        require('../goal/scripts/index'),
 };
 
+// 互斥组:同组内的增强只能选一个。
+// 现状:goal 与所有其他增强互斥——goal 是独立编排层(自己起 propose/apply 子 agent),
+// 而 review/skill-align 会 patch 同样的 openspec skill 注入"起子 agent"指令,
+// 两套并存会让弱模型在读 skill 时分不清该起什么子 agent,实测冲突。互斥从源头杜绝。
+// key 是"锁",意思是"选了 key 就不能选组里其他任何项"。goal 同时是 review 组和 skill-align 组的锁。
+function getMutexGroups() {
+  return {
+    'goal': ['review', 'skill-align'],
+  };
+}
+
+// 校验选中的增强是否违反互斥。违反返回错误信息字符串,不违反返回 null。
+function checkMutex(selectedIds, mutexGroups) {
+  for (const [lock, others] of Object.entries(mutexGroups)) {
+    if (selectedIds.includes(lock)) {
+      const conflict = others.filter(o => selectedIds.includes(o));
+      if (conflict.length > 0) {
+        return `goal 与 ${conflict.join(', ')} 互斥,不能同时启用。\n` +
+               `  原因:goal 是独立编排层,与 review/skill-align 同 patch 同 skill 文件会注入多套子 agent 指令,弱模型会混乱。\n` +
+               `  解决:要么只用 goal(编排 + 自带 fix→test→熔断质量门),要么用 review/skill-align(流程增强)。\n` +
+               `  若要 goal + 审查:goal 自己有 test change 做语义评估 + 测试,已是质量门。`;
+      }
+    }
+  }
+  return null;
+}
+
 // ─── CLI 输出 ───
 function ok(msg)   { console.log('  \x1b[32m✓\x1b[0m ' + msg); }
 function warn(msg) { console.log('  \x1b[33m!\x1b[0m ' + msg); }
@@ -27,7 +54,8 @@ const ANSI = {
 };
 
 // ─── 交互式多选 ───
-function multiSelect(options) {
+// mutexGroups: { lockId: [otherId, ...] } 选了 lockId 自动取消 others,反之亦然
+function multiSelect(options, mutexGroups = {}) {
   return new Promise((resolve) => {
     const stdin = process.stdin;
     // 非 TTY 由 init.js 调用前拦截报错,这里不处理
@@ -35,6 +63,25 @@ function multiSelect(options) {
     let selected = options.map(() => true); // 默认全选
     let current = 0, renderCount = 0, lastRows = 0;
     const BASE_ROWS = options.length + 2; // 1 行标题 + options.length 行选项 + 1 行 hint
+
+    // 互斥联动:toggle id 时,若 id 是某组的锁 → 取消组内其他;若 id 是某组的"其他" → 取消该组的锁
+    function applyMutex(toggledId) {
+      for (const [lock, others] of Object.entries(mutexGroups)) {
+        if (toggledId === lock && selected[options.findIndex(o => o.id === lock)]) {
+          // 刚选中了锁 → 取消组内其他
+          for (const otherId of others) {
+            const idx = options.findIndex(o => o.id === otherId);
+            if (idx !== -1) selected[idx] = false;
+          }
+        } else if (others.includes(toggledId)) {
+          // 刚选中了某个"其他" → 取消锁
+          const lockIdx = options.findIndex(o => o.id === lock);
+          if (lockIdx !== -1 && selected[options.findIndex(o => o.id === toggledId)]) {
+            selected[lockIdx] = false;
+          }
+        }
+      }
+    }
 
     function render() {
       const rows = BASE_ROWS;
@@ -48,7 +95,10 @@ function multiSelect(options) {
         const style = i === current ? ANSI.cyan : '';
         out += `  ${pointer} ${checkbox} ${style}${options[i].label}${ANSI.reset}${ANSI.clearLine}\n`;
       }
-      out += `  ${ANSI.dim}(空格切换, 回车确认, a 全选/取消)${ANSI.reset}${ANSI.clearLine}`;
+      const mutexHint = Object.keys(mutexGroups).length > 0
+        ? ' | \x1b[2mgoal 与其他互斥\x1b[0m'
+        : '';
+      out += `  ${ANSI.dim}(空格切换, 回车确认, a 全选/取消${mutexHint})${ANSI.reset}${ANSI.clearLine}`;
       process.stdout.write(out);
       lastRows = rows;
       renderCount++;
@@ -62,7 +112,11 @@ function multiSelect(options) {
     function onKeypress(str, key) {
       if (key.name === 'up')   { current = (current - 1 + options.length) % options.length; render(); }
       else if (key.name === 'down') { current = (current + 1) % options.length; render(); }
-      else if (key.name === 'space') { selected[current] = !selected[current]; render(); }
+      else if (key.name === 'space') {
+        selected[current] = !selected[current];
+        if (selected[current]) applyMutex(options[current].id);
+        render();
+      }
       else if (key.name === 'return' || key.name === 'enter') {
         cleanup();
         resolve(options.filter((_, i) => selected[i]).map(o => o.id));
@@ -114,7 +168,7 @@ async function init(projectDir, options = {}) {
     return false;
   } else {
     const opts = Object.values(enhancements).map(e => ({ id: e.id, label: e.label }));
-    selectedIds = await multiSelect(opts);
+    selectedIds = await multiSelect(opts, getMutexGroups());
   }
   if (selectedIds.length === 0) { info('未选择任何增强,退出。'); return true; }
 
@@ -123,6 +177,14 @@ async function init(projectDir, options = {}) {
   if (invalid.length > 0) {
     err('未知增强: ' + invalid.join(', '));
     info('可用增强: ' + Object.keys(enhancements).join(', '));
+    return false;
+  }
+
+  // 互斥校验:goal 与所有其他增强互斥(同 patch 同 skill 文件会塞多套子 agent 指令,
+  // 弱模型分不清自己该起什么子 agent,实测冲突。goal 是独立编排层,不和流程增强层混)
+  const mutexViolation = checkMutex(selectedIds, getMutexGroups());
+  if (mutexViolation) {
+    err(mutexViolation);
     return false;
   }
 
