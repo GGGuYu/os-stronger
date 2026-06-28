@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // os-stronger CLI entry point
 const { execSync } = require('child_process');
+const path = require('path');
 const { init, enhancements } = require('../src/init');
 const { handleGoal } = require('../goal/scripts/cli');
 const pkg = require('../package.json');
@@ -18,12 +19,17 @@ if (cmd === '--version' || cmd === '-v') {
 if (cmd === '--update') {
   console.log('os-stronger — 更新中...\n');
   try {
-    // 显式用 HTTPS,避免 npm 默认走 SSH 拉 GitHub 时因无 SSH key 失败(publickey denied)
-    execSync(`npm install -g https://github.com/${GITHUB_REPO}.git`, { stdio: 'inherit' });
+    // 两个关键点:
+    // 1. 用 HTTPS 拉 GitHub,避免 npm 默认走 SSH 时因无 SSH key 失败(publickey denied)
+    // 2. 用当前 node 同目录的 npm(process.execPath 的兄弟),而非 PATH 里随便哪个 npm——
+    //    多 node 环境下 PATH 的 npm 可能属于另一个 node,装到错误的全局目录,导致自己永远更新不到
+    const nodeBin = process.execPath;
+    const npmBin = path.join(path.dirname(nodeBin), 'npm');
+    execSync(`"${npmBin}" install -g https://github.com/${GITHUB_REPO}.git`, { stdio: 'inherit' });
     console.log('\n  \x1b[32m✓\x1b[0m os-stronger 已更新到最新版。');
     console.log('  如需更新项目中的增强,在项目目录跑 \x1b[36mos-stronger init\x1b[0m 重新注入。');
   } catch (e) {
-    console.error('  \x1b[31m✗\x1b[0m 更新失败: ' + (e.message || e));
+    console.error('  \x1b[31m✗\x1b[0x 更新失败: ' + (e.message || e));
     process.exit(1);
   }
   process.exit(0);
