@@ -29,6 +29,7 @@ ${PATCH_MARKER}
      - \`low\`  (maxCycle=2): every cycle — fix only issues that are BOTH true AND worth immediate fix. No "strict" cycle.
      - \`high\` (maxCycle=3): \`currentCycle === 1\` → strict: fix issues that are true (issues not worth fixing *may* still be skipped, but lean toward fixing). \`currentCycle >= 2\` → normal: prioritize correctness, minor issues can wait.
      - \`max\`  (maxCycle=3): same strictness curve as \`high\`, PLUS \`currentCycle === 1\` launches **two** independent review sub-agents (see STEP c).
+     - Note on the FINAL cycle (STEP c): when \`currentCycle === maxCycle\`, the review subagent is briefed to "only flag CRITICAL issues". This is a subagent-side narrowing of *what to report*, independent of your main-agent strictness above — you still apply your tier's judgment to whatever it returns (a CRITICAL it flags still needs your "true + worth fixing" check; a non-CRITICAL it omits you simply won't see). So there's no conflict: the FINAL briefing makes the last cycle lighter on the subagent side, which pairs naturally with the tiered strictness easing in later cycles.
 
      0a. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents**). If it does NOT exist, skip review and mark this task \`[x]\`.
      a. **Write requirement summary** to \`.os-stronger/requirement-summary.md\` (overwrite if exists). Base it on proposal.md + design.md.
@@ -37,7 +38,7 @@ ${PATCH_MARKER}
         - \`lastCompleted\` exists and < maxCycle → \`currentCycle = lastCompleted + 1\`.
      c. **Launch review subagent(s)**:
         First, run \`openspec status --change "<name>" --json\` to get \`changeRoot\` and \`artifactPaths\` (do NOT hardcode paths — workspace mode differs).
-        Subagent briefing (give both subagents the same briefing):
+        Subagent briefing (give each (sub)agent the same briefing):
         - You are reviewing an **OpenSpec change** named **\`<name>\`** (cwd).
         - Read these files (use PATHS from the status JSON):
           - \`.os-stronger/review-guide.md\` — review rules + output format

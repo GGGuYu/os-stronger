@@ -246,10 +246,6 @@ module.exports = {
 - `.os-stronger/review-guide.md` — 子 agent 审查规则(模板,init 时拷贝;档位不影响其中的 CRITICAL/ISSUE/SUGGEST 格式)
 - `.os-stronger/requirement-summary.md` — 主 agent review 时写
 
-**支撑文件**:
-- `.os-stronger/review-guide.md` — 子 agent 审查规则(模板,init 时拷贝)
-- `.os-stronger/requirement-summary.md` — 主 agent review 时写
-
 **skill 文件**:每个工具目录创建 `os-stronger-review/SKILL.md`
 
 ### skill-align 增强
