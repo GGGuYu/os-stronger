@@ -2,6 +2,7 @@
 // os-stronger CLI entry point
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { init, enhancements } = require('../src/init');
 const { handleGoal } = require('../goal/scripts/cli');
 const pkg = require('../package.json');
@@ -19,17 +20,30 @@ if (cmd === '--version' || cmd === '-v') {
 if (cmd === '--update') {
   console.log('os-stronger — 更新中...\n');
   try {
-    // 两个关键点:
-    // 1. 用 HTTPS 拉 GitHub,避免 npm 默认走 SSH 时因无 SSH key 失败(publickey denied)
-    // 2. 用当前 node 同目录的 npm(process.execPath 的兄弟),而非 PATH 里随便哪个 npm——
-    //    多 node 环境下 PATH 的 npm 可能属于另一个 node,装到错误的全局目录,导致自己永远更新不到
-    const nodeBin = process.execPath;
-    const npmBin = path.join(path.dirname(nodeBin), 'npm');
-    execSync(`"${npmBin}" install -g https://github.com/${GITHUB_REPO}.git`, { stdio: 'inherit' });
+    // 确定装哪:用当前生效的 os-stronger 所在的全局目录(即 `which os-stronger` 解析到的位置),
+    // 用该目录所属 node 环境的 npm 装。避免多 node 环境下"跑 os-stronger 的 node"和
+    // "装 os-stronger 的 node"不一致,导致装到错误全局目录、自己永远更新不到。
+    //
+    // 注意:bin 文件可能通过 symlink 安装(/prefix/bin/os-stronger → ../lib/node_modules/os-stronger/bin/os-stronger)
+    // __dirname 不解析 symlink(给的是 symlink 所在目录 /prefix/bin),所以要先 realpathSync
+    // 拿到物理路径 <prefix>/lib/node_modules/os-stronger/bin,再上溯 4 层到 <prefix>,npm 在 <prefix>/bin/npm。
+    const realBin = fs.realpathSync(__filename);
+    const prefix = path.resolve(path.dirname(realBin), '..', '..', '..', '..'); // <prefix>
+    const npmBin = path.join(prefix, 'bin', 'npm');
+    let npmCmd;
+    if (fs.existsSync(npmBin)) {
+      // 找到装 os-stronger 的那个 node 环境的 npm,用它装
+      npmCmd = `"${npmBin}"`;
+    } else {
+      // 兜底:用 PATH 的 npm(单 node 环境下没问题)
+      npmCmd = 'npm';
+    }
+    // HTTPS 拉 GitHub,避免 npm 默认走 SSH 时因无 SSH key 失败(publickey denied)
+    execSync(`${npmCmd} install -g https://github.com/${GITHUB_REPO}.git`, { stdio: 'inherit' });
     console.log('\n  \x1b[32m✓\x1b[0m os-stronger 已更新到最新版。');
     console.log('  如需更新项目中的增强,在项目目录跑 \x1b[36mos-stronger init\x1b[0m 重新注入。');
   } catch (e) {
-    console.error('  \x1b[31m✗\x1b[0x 更新失败: ' + (e.message || e));
+    console.error('  \x1b[31m✗\x1b[0m 更新失败: ' + (e.message || e));
     process.exit(1);
   }
   process.exit(0);
