@@ -293,6 +293,8 @@ ${ARCHIVE_MANDATORY_NOTE}
 
 **Before starting**, read and follow the \`openspec-apply-change\` skill in your project's skills directory (e.g., \`.claude/skills/openspec-apply-change/SKILL.md\`, \`.codex/skills/openspec-apply-change/SKILL.md\`, etc.). This skill defines the standard workflow for reading context files, implementing tasks, and marking them complete. You MUST follow it — goal orchestration wraps OpenSpec, it does not replace it.
 
+**⚠️ 你现在走的是 OpenSpec 的工作流,不是普通的自由发挥。** 本次 apply 的计划就是这次提案的 \`tasks.md\`——它就是你的 todo list / 任务列表。你必须维护它:做完一个任务就把 \`- [ ]\` 标成 \`- [x]\`,这是 goal 编排判断 change 进度、推进状态的唯一依据。在 OpenSpec 工作流下,**系统内置的 todo 工具不是你的主任务列表**——不要用它替代 \`tasks.md\` 的维护(可以镜像状态给用户看,但"完成"必须落在 \`tasks.md\` 的 \`[x]\` 上)。无视 \`tasks.md\`、只用内置 todo 会导致 change 卡住、goal 流程断掉。
+
 ## Your Task
 
 1. Follow the \`openspec-apply-change\` skill workflow:

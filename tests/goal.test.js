@@ -270,6 +270,9 @@ runTest('instructions 返回 apply_next（proposed change）', () => {
   const inst = getInstructions(tmpDir, 'test-goal');
   assert.strictEqual(inst.nextAction.type, 'apply_next');
   assert.strictEqual(inst.nextAction.changeToApply.id, 'backend');
+  // OpenSpec 工作流定位: tasks.md 是 todo list,内置 todo 不替代
+  assert.ok(inst.nextAction.subagentPrompt.includes('OpenSpec 的工作流'), 'apply 提示词应含 OpenSpec 工作流定位');
+  assert.ok(inst.nextAction.subagentPrompt.includes('系统内置的 todo 工具'), 'apply 提示词应说明内置 todo 不替代 tasks.md');
 });
 
 runTest('instructions 返回 done（全部 archived，含 test change）', () => {

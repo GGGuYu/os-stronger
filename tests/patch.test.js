@@ -71,6 +71,10 @@ test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
   assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
   assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
+  // OpenSpec 工作流定位: tasks.md 是 todo list,内置 todo 不替代
+  assert.ok(result.content.includes('OpenSpec 的工作流'), '应含 OpenSpec 工作流定位提醒');
+  assert.ok(result.content.includes('todo list') || result.content.includes('任务列表'), '应说明 tasks.md 是 todo list');
+  assert.ok(result.content.includes('系统内置的 todo 工具'), '应提及系统内置 todo 工具不替代 tasks.md');
   // 档位化(duration): tier 解析 + maxCycle + 分档严格度 + Max 双子 agent
   assert.ok(result.content.includes('[tier='), 'review workflow 应含 [tier= 解析标识');
   assert.ok(result.content.includes('TIER PARSE'), 'review workflow 应含 STEP 0 tier 解析步骤');
