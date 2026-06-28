@@ -270,9 +270,10 @@ runTest('instructions 返回 apply_next（proposed change）', () => {
   const inst = getInstructions(tmpDir, 'test-goal');
   assert.strictEqual(inst.nextAction.type, 'apply_next');
   assert.strictEqual(inst.nextAction.changeToApply.id, 'backend');
-  // OpenSpec 工作流定位: tasks.md 是 todo list,内置 todo 不替代
-  assert.ok(inst.nextAction.subagentPrompt.includes('OpenSpec 的工作流'), 'apply 提示词应含 OpenSpec 工作流定位');
-  assert.ok(inst.nextAction.subagentPrompt.includes('系统内置的 todo 工具'), 'apply 提示词应说明内置 todo 不替代 tasks.md');
+  // SDD 工作流定位: tasks.md 是任务列表,内置 todo 不替代(不留镜像口子)
+  assert.ok(inst.nextAction.subagentPrompt.includes('SDD') && inst.nextAction.subagentPrompt.includes('规范驱动开发'), 'apply 提示词应含 SDD 规范驱动开发定位');
+  assert.ok(inst.nextAction.subagentPrompt.includes('不要用内置 todo 工具替代'), 'apply 提示词应明确不要用内置 todo 替代 tasks.md');
+  assert.ok(!inst.nextAction.subagentPrompt.includes('镜像'), '不应留"镜像状态"口子');
 });
 
 runTest('instructions 返回 done（全部 archived，含 test change）', () => {

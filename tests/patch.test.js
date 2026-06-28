@@ -71,10 +71,11 @@ test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列
   assert.ok(result.content.includes('review-guide.md'), '应含 review-guide 路径');
   assert.ok(result.content.includes('congratulate, suggest archive'), '原 all_done 行应保留(兜底)');
   assert.ok(result.content.includes('Review task'), '应含 Review task 触发逻辑');
-  // OpenSpec 工作流定位: tasks.md 是 todo list,内置 todo 不替代
-  assert.ok(result.content.includes('OpenSpec 的工作流'), '应含 OpenSpec 工作流定位提醒');
-  assert.ok(result.content.includes('todo list') || result.content.includes('任务列表'), '应说明 tasks.md 是 todo list');
-  assert.ok(result.content.includes('系统内置的 todo 工具'), '应提及系统内置 todo 工具不替代 tasks.md');
+  // SDD 工作流定位: tasks.md 是任务列表,内置 todo 不替代(不留镜像口子)
+  assert.ok(result.content.includes('SDD') && result.content.includes('规范驱动开发'), '应含 SDD 规范驱动开发工作状态定位');
+  assert.ok(result.content.includes('任务列表') || result.content.includes('todo'), '应说明 tasks.md 是任务列表');
+  assert.ok(result.content.includes('不要用内置 todo 工具替代'), '应明确不要用内置 todo 替代 tasks.md');
+  assert.ok(!result.content.includes('镜像'), '不应留"镜像状态"口子(会触发平台持续注入维护内置 todo)');
   // 档位化(duration): tier 解析 + maxCycle + 分档严格度 + Max 双子 agent
   assert.ok(result.content.includes('[tier='), 'review workflow 应含 [tier= 解析标识');
   assert.ok(result.content.includes('TIER PARSE'), 'review workflow 应含 STEP 0 tier 解析步骤');

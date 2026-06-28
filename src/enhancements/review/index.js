@@ -6,7 +6,7 @@ const PROPOSE_MARKER = '<!-- OS-STRONGER-REVIEW-PROPOSE -->';
 
 const REVIEW_WORKFLOW_BLOCK = `
 ${PATCH_MARKER}
-   **⚠️ 你现在走的是 OpenSpec 的工作流,不是普通的自由发挥。** 本次 apply 的计划就是 OpenSpec 这次提案的 \`tasks.md\`——它就是你的 todo list / 任务列表。你必须维护 OpenSpec 的 task 文档:做完一个任务就在 \`tasks.md\` 把对应的 \`- [ ]\` 标成 \`- [x]\`,这是 OpenSpec 判断进度、触发 review、推进 change 状态的唯一依据。在 OpenSpec 工作流下,**系统内置的 todo 工具不是你的主任务列表**——不要用它替代 \`tasks.md\` 的维护(可以用它镜像状态给用户看,但"完成"这个动作必须落在 \`tasks.md\` 的 \`[x]\` 上)。无视 \`tasks.md\`、只用内置 todo 会导致 OpenSpec 流程断掉、change 卡住。
+   **⚠️ 你现在处于 SDD(规范驱动开发)套件管理的工作状态,不是普通的自由发挥。** 不要按普通情况错把系统内置的 todo 工具当成你做 plan / 跟踪任务的工具——那会触发平台持续注入"维护内置 todo"的提示词,干扰你维护真正的任务源。在 OpenSpec 工作流下,你的任务列表就是本次提案的 \`tasks.md\`,这是 OpenSpec 判断进度、触发 review、推进 change 状态的唯一依据。你必须去**维护 OpenSpec 的规范驱动开发系列文档**:做完一个任务就在 \`tasks.md\` 把 \`- [ ]\` 标成 \`- [x]\`,不要用内置 todo 工具替代这个动作。无视 \`tasks.md\`、只用内置 todo 会导致 OpenSpec 流程断掉、change 卡住。
 
    **os-stronger review workflow** — triggered when the current task is a Review task (e.g. "Review: 按照...启动 Review N...") OR when \`state: "all_done"\` is reached without a Review task having run yet.
 
