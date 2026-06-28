@@ -9,7 +9,7 @@ This skill is automatically active when a project has been initialized with `os-
 
 ## What it does
 
-**propose 阶段**(openspec-propose skill 被注入):写 tasks.md 末尾的 Review task 前,用 AskUserQuestion 问 review 档位(low/high/max,默认 low),把 `[tier=XXX]` 嵌进 Review 1 task 文字。**问了没明确答复(沉默/含糊/跑题)→ 立即 default low 继续,不重复追问、不阻塞**;AskUserQuestion 不可用 → 直接 low。仅用户明确说 high/max(或"严格""高质量"等)才升档。
+**propose 阶段**(openspec-propose skill 被注入):写 tasks.md 末尾的 Review task 前,问用户 review 档位(low/high/max,默认 low)——优先 AskUserQuestion,不可用就文本问,把 `[tier=XXX]` 嵌进 Review 1 task 文字。**问了没明确答复(沉默/含糊/跑题)→ 立即 default low 继续,不重复追问、不阻塞**(propose 完本就会停,这是问的天然窗口;用户没专门答复档位就走 low)。仅用户明确说 high/max(或"严格""高质量"等)才升档。
 
 **apply 阶段**(openspec-apply-change skill 被注入):遇到 Review task 时:
 1. **STEP -1 嵌套自检**:是子 agent(goal 模式等)→ 静默跳过 review

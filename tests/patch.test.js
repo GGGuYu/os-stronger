@@ -117,6 +117,8 @@ test('review: patchPropose 追加到末尾', () => {
   assert.ok(result.content.includes('low') && result.content.includes('high') && result.content.includes('max'), '应说明三档');
   // 默认兜底: 问了没明确答复应 default low 不阻塞
   assert.ok(result.content.includes('别卡住等答复') || result.content.includes('没明确答复'), '应说明问了没明确答复→default low 不阻塞');
+  // 问的方式: 优先 AskUserQuestion,不可用就文本问(不绑死工具)
+  assert.ok(result.content.includes('文本问'), '应说明工具不可用时可用文本问(不绑死 AskUserQuestion)');
 });
 
 test('review: patchPropose 幂等', () => {

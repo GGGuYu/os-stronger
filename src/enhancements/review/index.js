@@ -74,18 +74,19 @@ ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `
 ${PROPOSE_MARKER}
-**os-stronger review reminder**: This project has os-stronger review enabled. When generating \`tasks.md\`, you MUST add a **Review task as the last task** (absolute last, after all implementation tasks). Before writing it, ask the user which review tier to use:
+**os-stronger review reminder**: This project has os-stronger review enabled. When generating \`tasks.md\`, you MUST add a **Review task as the last task** (absolute last, after all implementation tasks). Before writing it, ask the user which review tier to use.
 
-**Use AskUserQuestion** (single-select) with this question: "本次 review 用哪档?" Options:
+**怎么问**(两种都行,任选其一):
+- 优先用 **AskUserQuestion**(single-select):"本次 review 用哪档?" 选项 low / high / max(见下)。
+- 若平台无 AskUserQuestion 工具,**直接用文本回复问**用户"本次 review 用哪档?(low/high/max,默认 low)"——文本问也是问,一样有效。
+
+**档位说明**(问的时候带上):
 - **low** (推荐/默认):最多 2 轮。第 1 轮建议性审查——属实**且值得修**才修。第 2 轮熔断,修完直接 archive。适合多数任务。
 - **high**:最多 3 轮。第 1 轮严格——属实的尽量修(不值得也**可**不修,但倾向修)。第 2 轮起回归正确性为主,小问题可不修。第 3 轮熔断。质量要求较高时选。
 - **max**:最多 3 轮。第 1 轮严格 **且起两个独立 review 子 agent**(支持并行则并行,否则串行),主 agent 融合两份 findings、交叉确认、属实的能修尽量修。第 2 轮起正确性为主。第 3 轮熔断。最严,也最贵。
 
-**重要——别卡住等答复**:
-- AskUserQuestion 不可用(平台无此工具)→ 直接 default \`low\`,不问。
-- 问了但用户没明确答复(沉默 / 含糊 / 只说"随便""你定""默认吧" / 跑题没回答档位)→ **立即 default \`low\` 继续**,不要重复追问、不要阻塞流程。用户没明确选 high/max 就是 low。
-- 仅当用户明确说出 high / max(或等价表达如"要严格""高质量""多查几轮")才用对应档位。
-- 一句话原则:**问了没明确答复 = low,直接往下走**。
+**问了没明确答复 → default low,别卡住**:
+propose 完本就会停下来等用户确认,这是问档位的天然窗口。但若用户**看到了却没专门答复档位**(沉默 / 含糊 / 只说"继续""随便""你定""默认吧" / 跑题)→ **立即 default \`low\` 继续写 Review task**,不要重复追问、不要阻塞流程。仅当用户明确说出 high / max(或等价表达如"要严格""高质量""多查几轮")才用对应档位。一句话:**问了没明确答复 = low,直接往下走**。(这条与用哪种方式问无关——工具问或文本问,没明确答复都走 low。)
 
 Write the tier into the Review task text using this exact format (the apply workflow parses \`[tier=...]\` from the task):
 
