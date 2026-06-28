@@ -18,7 +18,8 @@ if (cmd === '--version' || cmd === '-v') {
 if (cmd === '--update') {
   console.log('os-stronger — 更新中...\n');
   try {
-    execSync(`npm install -g ${GITHUB_REPO}`, { stdio: 'inherit' });
+    // 显式用 HTTPS,避免 npm 默认走 SSH 拉 GitHub 时因无 SSH key 失败(publickey denied)
+    execSync(`npm install -g https://github.com/${GITHUB_REPO}.git`, { stdio: 'inherit' });
     console.log('\n  \x1b[32m✓\x1b[0m os-stronger 已更新到最新版。');
     console.log('  如需更新项目中的增强,在项目目录跑 \x1b[36mos-stronger init\x1b[0m 重新注入。');
   } catch (e) {
