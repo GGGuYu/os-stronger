@@ -62,6 +62,15 @@ function multiSelect(options, mutexGroups = {}) {
     // 非 TTY 由 init.js 调用前拦截报错,这里不处理
 
     let selected = options.map(() => true); // 默认全选
+    // 互斥:默认偏向轻量通用增强(review/skill-align),取消重型编排(goal)。
+    // goal 需用户主动选——选了 goal 联动会取消 review/skill-align(见 applyMutex)。
+    if (mutexGroups && Object.keys(mutexGroups).length > 0) {
+      for (let i = 0; i < options.length; i++) {
+        if (Object.keys(mutexGroups).includes(options[i].id)) {
+          selected[i] = false;
+        }
+      }
+    }
     let current = 0, renderCount = 0, lastRows = 0;
     const BASE_ROWS = options.length + 2; // 1 行标题 + options.length 行选项 + 1 行 hint
 
