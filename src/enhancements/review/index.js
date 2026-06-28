@@ -1,5 +1,5 @@
 // src/enhancements/review/index.js
-// review 增强: 全部 task 完成后起子 agent 审查,最多 2 轮,熔断兜底。
+// review 增强: 全部 task 完成后起子 agent 审查,档位化(low/maxCycle=2, high/maxCycle=3 严格第二轮普通, max/严格+双子agent交叉), 熔断兜底。
 
 const PATCH_MARKER = '<!-- OS-STRONGER-REVIEW -->';
 const PROPOSE_MARKER = '<!-- OS-STRONGER-REVIEW-PROPOSE -->';
@@ -18,62 +18,80 @@ ${PATCH_MARKER}
 
    **When you encounter a Review task** (the task description contains "Review" and "启动 Review"):
 
-     **STEP 0 — CIRCUIT BREAKER (highest priority, check FIRST before anything else)**:
-     Scan \`tasks.md\` for task lines matching \`Review N Fix -\`. Find the highest N where ALL \`Review N Fix\` tasks are marked \`[x]\` (complete). Call this \`lastCompleted\`.
-     - If \`lastCompleted >= 2\` (Review 2 already fully completed): **STOP. Do NOT launch any subagent. Do NOT write anything. Mark this Review task \`[x]\`. Then ask the user: "Review 已完成 2 轮(硬上限),是否归档此 change?" Do NOT auto-archive — the user decides.** The 2-cycle limit is HARD. No exceptions.
-     - This check must happen before any other step. If it fires, skip steps 0a-f entirely.
+     **STEP 0 — TIER PARSE + CIRCUIT BREAKER (highest priority, check FIRST before anything else)**:
+     1. **Parse tier**: read the CURRENT Review task's text for \`[tier=<low|high|max>]\`. If found, \`tier\` = that value. If not found (older changes without a tier tag), default \`tier = 'low'\` (backward compatible).
+     2. **Compute maxCycle**: \`maxCycle = (tier === 'low') ? 2 : 3\`.
+     3. **Circuit breaker**: scan \`tasks.md\` for \`Review N Fix -\` markers. Find the highest N where all \`Review N Fix\` tasks are \`[x]\`. Call it \`lastCompleted\`.
+        - If \`lastCompleted >= maxCycle\`: **STOP. Do NOT launch subagents. Mark this Review task \`[x]\`. Ask user: "Review 已完成 \${maxCycle} 轮(硬上限,tier=\${tier}),是否归档此 change?" Do NOT auto-archive.** Hard limit, no exceptions.
+        - This check fires BEFORE steps 0a-f. Skip them entirely if it fires.
 
-     0a. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents** — the review guide is for the subagent, not for you). If it does NOT exist, skip review and mark this task \`[x]\`.
-     a. **Write requirement summary**: Write a brief summary of what this change was supposed to accomplish to \`.os-stronger/requirement-summary.md\`. Base this on the proposal and design documents. Overwrite if already exists.
-     b. **Determine review cycle** (same scan as STEP 0, but now we know lastCompleted < 2):
-        - If no completed review markers exist: \`currentCycle = 1\`.
-        - If \`lastCompleted\` exists and \`lastCompleted < 2\`: \`currentCycle = lastCompleted + 1\`.
-     c. **Launch review subagent**:
-        First, run \`openspec status --change "<name>" --json\` to get the \`changeRoot\` and \`artifactPaths\` (do NOT hardcode \`openspec/changes/<name>/\` — workspace mode uses a different path).
-        Use the built-in subagent mechanism. Tell the subagent:
-        - You are reviewing an **OpenSpec change** named **\`<name>\`** (in the current working directory).
-        - The change's files can be found at the paths listed below.
-        - Read these files (pass PATHS from the status JSON, not hardcoded paths):
-        - \`.os-stronger/review-guide.md\` — review rules and output format
-        - \`.os-stronger/requirement-summary.md\` — what to check against
-        - \`tasks.md\` — from \`artifactPaths.tasks.resolvedOutputPath\` (or \`artifactPaths.tasks.existingOutputPaths[0]\` if already created)
-        - \`design.md\` — from \`artifactPaths.design.resolvedOutputPath\` (if exists)
-        - \`proposal.md\` — from \`artifactPaths.proposal.resolvedOutputPath\` (if exists)
-        - \`git diff HEAD\` — actual changes vs last commit. If not a git repo or diff is empty, read the files listed in tasks.md directly.
-        If \`currentCycle === 2\`, add: "This is the FINAL review cycle (Review 2). Only flag CRITICAL issues that would break functionality."
-     d. **Evaluate subagent findings**: When the subagent returns, evaluate each finding:
-        1. Is it actually TRUE? (use your knowledge of the codebase)
-        2. Is it worth fixing IMMEDIATELY? (consider: does the delay of fixing this outweigh the cost?)
-        Only create fix tasks for findings that are BOTH true AND worth immediate fix.
-     e. **Create fix tasks**: In \`tasks.md\`, add new tasks for accepted findings:
-        \`- [ ] Review N Fix - <brief description>\`
-        Where N is \`currentCycle\`.
+     **Tier semantics reference** (main agent's per-cycle strictness, applies to STEP d/f):
+     - \`low\`  (maxCycle=2): every cycle — fix only issues that are BOTH true AND worth immediate fix. No "strict" cycle.
+     - \`high\` (maxCycle=3): \`currentCycle === 1\` → strict: fix issues that are true (issues not worth fixing *may* still be skipped, but lean toward fixing). \`currentCycle >= 2\` → normal: prioritize correctness, minor issues can wait.
+     - \`max\`  (maxCycle=3): same strictness curve as \`high\`, PLUS \`currentCycle === 1\` launches **two** independent review sub-agents (see STEP c).
+
+     0a. Check if \`.os-stronger/review-guide.md\` exists in the project root (**only check existence, do NOT read its contents**). If it does NOT exist, skip review and mark this task \`[x]\`.
+     a. **Write requirement summary** to \`.os-stronger/requirement-summary.md\` (overwrite if exists). Base it on proposal.md + design.md.
+     b. **Determine review cycle** (same scan as STEP 0, now knowing lastCompleted < maxCycle):
+        - No completed markers → \`currentCycle = 1\`.
+        - \`lastCompleted\` exists and < maxCycle → \`currentCycle = lastCompleted + 1\`.
+     c. **Launch review subagent(s)**:
+        First, run \`openspec status --change "<name>" --json\` to get \`changeRoot\` and \`artifactPaths\` (do NOT hardcode paths — workspace mode differs).
+        Subagent briefing (give both subagents the same briefing):
+        - You are reviewing an **OpenSpec change** named **\`<name>\`** (cwd).
+        - Read these files (use PATHS from the status JSON):
+          - \`.os-stronger/review-guide.md\` — review rules + output format
+          - \`.os-stronger/requirement-summary.md\` — what to check against
+          - \`tasks.md\` — \`artifactPaths.tasks.resolvedOutputPath\` (or \`existingOutputPaths[0]\`)
+          - \`design.md\` — \`artifactPaths.design.resolvedOutputPath\` (if exists)
+          - \`proposal.md\` — \`artifactPaths.proposal.resolvedOutputPath\` (if exists)
+          - \`git diff HEAD\` — actual changes vs last commit. If not git / empty, read files listed in tasks.md.
+        If \`currentCycle === maxCycle\` (FINAL cycle), add: "This is the FINAL review cycle (Review \${maxCycle}). Only flag CRITICAL issues that would break functionality."
+
+        **\`tier === 'max'\` AND \`currentCycle === 1\` ONLY** — launch **two independent** review subagents with the briefing above. Launch in parallel if your platform supports it; otherwise sequentially. After both return: **merge their findings** — deduplicate, cross-confirm items flagged by both (higher confidence), and treat the union as the combined findings input to STEP d/e. (Other tiers and other cycles: single subagent only.)
+     d. **Evaluate findings** (per-cycle strictness from Tier semantics above):
+        - Is each finding actually TRUE? (use your codebase knowledge)
+        - Is it worth fixing now?
+        Strictness (cycle 1 of high/max): true → lean fix (skip only if clearly not worth it). Normal (cycle >= 2, or any low cycle): fix only if BOTH true AND worth immediate fix.
+     e. **Create fix tasks**: In \`tasks.md\`, add accepted findings:
+        \`- [ ] Review \${currentCycle} Fix - <brief>\`
         Example: \`- [ ] Review 1 Fix - Missing error handling in auth module\`
-     f. **After review** (uses same currentCycle from step b):
-        - If NO findings were worth fixing: mark the Review task \`[x]\`. Then ask the user: "Review 通过,是否归档此 change?" Do NOT auto-archive.
-        - If \`currentCycle === 1\` and there are fix tasks: mark the Review task \`[x]\`, then do the fix tasks. After all fix tasks are done, add a new task: \`- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 2 子 agent 对本次 change 做独立审查\`. This becomes the next Review trigger.
-        - If \`currentCycle === 2\` and there are fix tasks: mark the Review task \`[x]\`, fix them, then the circuit breaker in STEP 0 will fire on the next Review task. Do NOT add a Review 3 task. Do NOT auto-archive — ask the user.
+     f. **After review** (uses currentCycle from step b):
+        - If NO findings worth fixing: mark Review task \`[x]\`. Ask user: "Review 通过,是否归档此 change?" Do NOT auto-archive.
+        - If findings worth fixing AND \`currentCycle < maxCycle\` (cycles remain):
+          mark Review task \`[x]\`, do the fix tasks, then add:
+          \`- [ ] Review [tier=\${tier}]: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review \${currentCycle + 1} 子 agent 对本次 change 做独立审查\`
+        - If findings worth fixing AND \`currentCycle === maxCycle\` (final cycle, no cycles left):
+          mark Review task \`[x]\`, fix them, then the STEP 0 circuit breaker fires on the next Review task. Do NOT add a Review N+1 task. Do NOT auto-archive — ask the user.
+        (Reuse the SAME \`tier\` value in every subsequent Review task's \`[tier=...]\` tag — the tier chosen at propose time carries through the whole change's review cycles.)
 
    **Fallback (ONLY if review was NOT done this round — do NOT re-trigger if review already ran)**:
      - First, check \`tasks.md\`: is there any task containing "Review" that is marked \`[x]\`? If YES → review already happened this round, do NOT trigger again. Ask the user: "是否归档此 change?" Do NOT auto-archive.
-     - If NO Review task was ever marked \`[x]\` (meaning review was skipped — e.g. the Review task was missing from tasks.md, or propose didn't add it): Check if \`.os-stronger/review-guide.md\` exists. If NOT: ask the user if they want to archive (unchanged behavior).
-     - If it EXISTS: review was skipped this round. Run the review workflow above (steps a-f) with \`currentCycle = 1\`, then decide archive or add fix tasks + Review 2 task as above.
+     - If NO Review task was ever marked \`[x]\` (review was skipped — e.g. Review task missing from tasks.md, or propose didn't add it): Check if \`.os-stronger/review-guide.md\` exists. If NOT: ask the user whether to archive (unchanged behavior).
+     - If it EXISTS: review was skipped this round. Run the workflow above (steps a-f) with \`currentCycle = 1\`, \`tier = 'low'\` (no tier tag to parse → default), then decide archive or add fix tasks + Review 2 task as above.
 ${PATCH_MARKER}`;
 
 const PROPOSE_BLOCK = `
 ${PROPOSE_MARKER}
-**os-stronger review reminder**: This project has os-stronger review enabled. When generating \`tasks.md\`, you MUST add the following as the **last task**:
+**os-stronger review reminder**: This project has os-stronger review enabled. When generating \`tasks.md\`, you MUST add a **Review task as the last task** (absolute last, after all implementation tasks). Before writing it, ask the user which review tier to use:
+
+**Use AskUserQuestion** (single-select) with this question: "本次 review 用哪档?" Options:
+- **low** (推荐/默认):最多 2 轮。第 1 轮建议性审查——属实**且值得修**才修。第 2 轮熔断,修完直接 archive。适合多数任务。
+- **high**:最多 3 轮。第 1 轮严格——属实的尽量修(不值得也**可**不修,但倾向修)。第 2 轮起回归正确性为主,小问题可不修。第 3 轮熔断。质量要求较高时选。
+- **max**:最多 3 轮。第 1 轮严格 **且起两个独立 review 子 agent**(支持并行则并行,否则串行),主 agent 融合两份 findings、交叉确认、属实的能修尽量修。第 2 轮起正确性为主。第 3 轮熔断。最严,也最贵。
+
+Write the tier into the Review task text using this exact format (the apply workflow parses \`[tier=...]\` from the task):
 
 \`\`\`markdown
-- [ ] Review: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 1 子 agent 对本次 change 做独立审查
+- [ ] Review [tier=<low|high|max>]: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 1 子 agent 对本次 change 做独立审查
 \`\`\`
 
-This task is not optional — it ensures the review workflow is triggered. The agent executing tasks will see this as the final task and follow the review workflow instructions in openspec-apply-change.
+(Note: AskUserQuestion 不可用时 default to \`low\`. This task is not optional — it ensures the review workflow is triggered. The agent executing tasks will see this as the final task and follow the review workflow instructions in openspec-apply-change.)
 ${PROPOSE_MARKER}`;
 
 module.exports = {
   id: 'review',
-  label: 'review — 全部 task 完成后起子 agent 审查 (最多 2 轮)',
+  label: 'review — 全部 task 完成后起子 agent 审查 (档位: low=2轮 / high=3轮严格 / max=3轮严格+双子agent)',
 
   // 返回要 patch 的文件和对应的 patch 函数
   patches: {

@@ -52,22 +52,33 @@ os-stronger --version     # 查看版本
 
 ## 可用增强
 
-### review — 全部 task 完成后起子 agent 审查
+### review — 全部 task 完成后起子 agent 审查（档位化）
 
-**触发方式**：propose 时自动在 tasks.md 末尾加一个 Review task。agent 走到这个 task 时触发 review 工作流（不依赖长上下文记忆）。all_done 分支作兜底。
+**触发方式**：propose 时主 agent 先用 `AskUserQuestion` 问 review 档位（low/high/max，默认 low），把 `[tier=XXX]` 写进 tasks.md 末尾的 Review task。agent 走到这个 task 时触发 review 工作流（不依赖长上下文记忆）。all_done 分支作兜底（兜底无 tier 标识 → 默认 low）。
+
+**档位**：
+
+| 档位 | 最大轮数 | 第 1 轮严格度 | 后续轮 |
+|------|----------|---------------|--------|
+| **low**（默认） | 2 | 属实**且值得修**才修 | 第 2 轮熔断，修完 archive |
+| **high** | 3 | 严格：属实的尽量修（不值得也**可**不修） | 正确性为主，小问题可不修；第 3 轮熔断 |
+| **max** | 3 | 严格 **+ 起两个独立 review 子 agent**（并行优先否则串行），主 agent 融合 two findings 交叉确认 | 单子 agent；第 3 轮熔断 |
+
+tier 只写在 Review task 文字里（`- [ ] Review [tier=high]: ...`），apply 时解析，纯提示词无 CLI/state。goal 模式下 review 仍静默跳过（嵌套兜底），档位不生效。
 
 **工作流**：
 
-1. **STEP 0 熔断**（最高优先级）：扫 tasks.md，如果 Review 2 已完成 → 询问用户是否 archive，不启动子 agent
-2. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
-3. 写需求总结到 `.os-stronger/requirement-summary.md`
-4. 起子 agent，先跑 `openspec status --change <name> --json` 拿文件路径（不写死路径，兼容 workspace 模式），甩路径给子 agent（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
-5. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings
-6. 主 agent 独立判断每条：是否属实？是否值得现在立即修？
-7. 属实且值得修的 → 建 `Review N Fix - <desc>` task
-8. Review 1 有 fix → 修完加 Review 2 task；Review 2 有 fix → 修完熔断；无 fix → 询问用户是否 archive
+1. **STEP -1 嵌套自检**：识别自己是子 agent（goal 模式等）→ 静默跳过 review，不起子 agent
+2. **STEP 0 tier 解析 + 熔断**：从 Review task 文字解析 `[tier=XXX]` → `maxCycle = low?2:3`。扫 tasks.md，`lastCompleted >= maxCycle` → 询问用户是否 archive，不启动子 agent
+3. 主 agent 检查 `.os-stronger/review-guide.md` 是否存在（只看存在，不读内容）
+4. 写需求总结到 `.os-stronger/requirement-summary.md`
+5. 起子 agent（max 档 cycle 1 起两个），先跑 `openspec status --change <name> --json` 拿文件路径（不写死路径，兼容 workspace 模式），甩路径给子 agent（review-guide + requirement-summary + tasks.md + design.md + proposal.md + git diff HEAD）
+6. 子 agent 按 CRITICAL/ISSUE/SUGGEST 分档输出 findings（max 档 cycle 1 主 agent 融合两个子 agent 的 findings，去重交叉）
+7. 主 agent 独立判断每条（按 tier 严格度）：是否属实？是否值得现在立即修？
+8. 属实且值得修的 → 建 `Review N Fix - <desc>` task
+9. `currentCycle < maxCycle` 有 fix → 修完加 `Review [tier=...] N+1` task（同 tier 贯穿）；`currentCycle === maxCycle` 有 fix → 修完熔断，不加 N+1；无 fix → 询问用户是否 archive
 
-findings 不强制——主 agent 有最终决定权，任何档（含 CRITICAL）均可忽略。**archive 决定权在用户**，agent 只能询问不能自动做。
+findings 不强制——主 agent 有最终决定权，任何档（含 CRITICAL）均可忽略。档位只调"修的倾向"，不改成命令式。**archive 决定权在用户**，agent 只能询问不能自动做。
 
 ### skill-align — propose 时主动询问用户要用哪些 skill
 

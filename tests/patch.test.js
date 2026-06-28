@@ -75,6 +75,12 @@ test('review: patchApplyChange 在 Handle states 整块之前注入(不劈开列
   assert.ok(result.content.includes('STEP -1'), '应含 STEP -1 嵌套自检');
   assert.ok(result.content.includes('NESTED SUB-AGENT CHECK'), '应含嵌套子 agent 检查标题');
   assert.ok(result.content.includes('silently skipped'), '应说明子 agent 静默跳过 review');
+  // 档位化(duration): tier 解析 + maxCycle + 分档严格度 + Max 双子 agent
+  assert.ok(result.content.includes('[tier='), 'review workflow 应含 [tier= 解析标识');
+  assert.ok(result.content.includes('TIER PARSE'), 'review workflow 应含 STEP 0 tier 解析步骤');
+  assert.ok(result.content.includes('maxCycle'), '应含 maxCycle 计算(low=2, high/max=3)');
+  assert.ok(result.content.includes('Tier semantics'), '应含分档严格度说明(Tier semantics)');
+  assert.ok(result.content.includes('two independent'), 'max 档应说明起两个独立 review 子 agent');
   // review 块应在 Handle states 之前
   const markerPos = result.content.indexOf('OS-STRONGER-REVIEW');
   const handleStatesPos = result.content.indexOf('**Handle states:**');
@@ -105,6 +111,10 @@ test('review: patchPropose 追加到末尾', () => {
   const markerPos = result.content.indexOf('OS-STRONGER-REVIEW-PROPOSE');
   const guardrailsPos = result.content.indexOf('**Guardrails**');
   assert.ok(markerPos > guardrailsPos, '应在 Guardrails 之后');
+  // 档位化: propose patch 应含 AskUserQuestion 问档位 + tier 嵌 Review task
+  assert.ok(result.content.includes('AskUserQuestion'), 'propose patch 应要求用 AskUserQuestion 问档位');
+  assert.ok(result.content.includes('[tier=<low|high|max>]'), 'propose patch 应含 tier 占位格式 [tier=<low|high|max>]');
+  assert.ok(result.content.includes('low') && result.content.includes('high') && result.content.includes('max'), '应说明三档');
 });
 
 test('review: patchPropose 幂等', () => {
