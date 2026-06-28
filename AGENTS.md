@@ -217,7 +217,7 @@ module.exports = {
 ### review 增强
 
 **触发方式**(两层):
-1. **主触发**:propose patch 要求 propose 子 agent **先用 `AskUserQuestion` 问 review 档位**(low/high/max,默认 low),把 `[tier=XXX]` 写进 tasks.md 末尾的 `- [ ] Review [tier=XXX]: 按 apply skill 指导启动 Review 1`。agent 走到这个 task 时 CLI 直接推到面前,不依赖长上下文记忆。
+1. **主触发**:propose patch 要求 propose 子 agent **先用 `AskUserQuestion` 问 review 档位**(low/high/max,默认 low),把 `[tier=XXX]` 写进 tasks.md 末尾的 `- [ ] Review [tier=XXX]: 按 apply skill 指导启动 Review 1`。agent 走到这个 task 时 CLI 直接推到面前,不依赖长上下文记忆。**问了没明确答复(沉默/含糊/跑题)→ 立即 default low 继续,不阻塞流程**;工具不可用 → 直接 low。
 2. **兜底**:all_done 分支保留,但仅在"本轮从未做过 review"(tasks.md 无 `[x]` 的 Review task)时触发。做过就跳过,不重复。兜底无 tier 标识 → 默认 low。
 
 **档位**(纯提示词,无 CLI/state;tier 只写在 Review task 文字里,apply 解析):
@@ -375,6 +375,7 @@ os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工
 | 去掉 review 熔断上限(档位化的 maxCycle) | ❌ | 违背原则 4(熔断兜底)。low=2 / high=max=3,仍是硬上限 |
 | 把档位改成命令式语气(强制修) | ❌ | 违背原则 3(findings 不强制)。档位只调"修的倾向",不可强制 |
 | 把档位默认改成 high/max | ❌ | 默认 low 符合多数任务。high/max 主动选,避免意外高成本 |
+| 问了档位用户没明确答复就阻塞等 / 重复追问 | ❌ | 没明确答复 = low,立即继续。问是暴露档位的手段,不是阻塞点 |
 | 引入 npm 依赖 | ❌ | 违背原则 5(零依赖) |
 | 让 backup 被多增强覆盖 | ❌ | 违背原则 6(非侵入,可恢复) |
 | 去掉 restore 的 marker 检查 | ❌ | 违背原则 6。marker 检查防 OpenSpec 更新后降级 |

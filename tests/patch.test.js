@@ -115,6 +115,8 @@ test('review: patchPropose 追加到末尾', () => {
   assert.ok(result.content.includes('AskUserQuestion'), 'propose patch 应要求用 AskUserQuestion 问档位');
   assert.ok(result.content.includes('[tier=<low|high|max>]'), 'propose patch 应含 tier 占位格式 [tier=<low|high|max>]');
   assert.ok(result.content.includes('low') && result.content.includes('high') && result.content.includes('max'), '应说明三档');
+  // 默认兜底: 问了没明确答复应 default low 不阻塞
+  assert.ok(result.content.includes('别卡住等答复') || result.content.includes('没明确答复'), '应说明问了没明确答复→default low 不阻塞');
 });
 
 test('review: patchPropose 幂等', () => {

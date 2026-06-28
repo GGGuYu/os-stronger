@@ -81,13 +81,19 @@ ${PROPOSE_MARKER}
 - **high**:最多 3 轮。第 1 轮严格——属实的尽量修(不值得也**可**不修,但倾向修)。第 2 轮起回归正确性为主,小问题可不修。第 3 轮熔断。质量要求较高时选。
 - **max**:最多 3 轮。第 1 轮严格 **且起两个独立 review 子 agent**(支持并行则并行,否则串行),主 agent 融合两份 findings、交叉确认、属实的能修尽量修。第 2 轮起正确性为主。第 3 轮熔断。最严,也最贵。
 
+**重要——别卡住等答复**:
+- AskUserQuestion 不可用(平台无此工具)→ 直接 default \`low\`,不问。
+- 问了但用户没明确答复(沉默 / 含糊 / 只说"随便""你定""默认吧" / 跑题没回答档位)→ **立即 default \`low\` 继续**,不要重复追问、不要阻塞流程。用户没明确选 high/max 就是 low。
+- 仅当用户明确说出 high / max(或等价表达如"要严格""高质量""多查几轮")才用对应档位。
+- 一句话原则:**问了没明确答复 = low,直接往下走**。
+
 Write the tier into the Review task text using this exact format (the apply workflow parses \`[tier=...]\` from the task):
 
 \`\`\`markdown
 - [ ] Review [tier=<low|high|max>]: 按照 openspec-apply-change skill 中注入的 os-stronger review 工作流,启动 Review 1 子 agent 对本次 change 做独立审查
 \`\`\`
 
-(Note: AskUserQuestion 不可用时 default to \`low\`. This task is not optional — it ensures the review workflow is triggered. The agent executing tasks will see this as the final task and follow the review workflow instructions in openspec-apply-change.)
+(This task is not optional — it ensures the review workflow is triggered. The agent executing tasks will see this as the final task and follow the review workflow instructions in openspec-apply-change. Default tier is \`low\` per the rule above — don't block on getting an answer.)
 ${PROPOSE_MARKER}`;
 
 module.exports = {

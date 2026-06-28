@@ -54,7 +54,7 @@ os-stronger --version     # 查看版本
 
 ### review — 全部 task 完成后起子 agent 审查（档位化）
 
-**触发方式**：propose 时主 agent 先用 `AskUserQuestion` 问 review 档位（low/high/max，默认 low），把 `[tier=XXX]` 写进 tasks.md 末尾的 Review task。agent 走到这个 task 时触发 review 工作流（不依赖长上下文记忆）。all_done 分支作兜底（兜底无 tier 标识 → 默认 low）。
+**触发方式**：propose 时主 agent 先用 `AskUserQuestion` 问 review 档位（low/high/max，默认 low），把 `[tier=XXX]` 写进 tasks.md 末尾的 Review task。agent 走到这个 task 时触发 review 工作流（不依赖长上下文记忆）。all_done 分支作兜底（兜底无 tier 标识 → 默认 low）。**问了没明确答复（沉默/含糊/跑题）→ 立即 default low 继续，不阻塞**；工具不可用 → 直接 low。
 
 **档位**：
 
