@@ -356,7 +356,7 @@ os-stronger 通过 patch OpenSpec 的 skill 文件 + 调用 OpenSpec 的 CLI 工
 
 7. **restore 降级防护**:如果 OpenSpec update 覆盖了 skill 文件（文件不含 os-stronger marker），restore 会跳过恢复并删除过期 backup，避免把新版本降级回旧版本。但用户可能困惑为什么 restore "没生效"——实际是正确行为。
 
-8. **goal 与其他增强互斥**(原"嵌套子 agent"问题的根治):goal + review/skill-align 同时启用时,会往同一个 openspec skill 文件里塞多套"起子 agent"指令(goal 注入"你是 PROPOSE/APPLY 子 agent"、review 注入"遇到 Review task 起子 agent"、skill-align 注入"问用户用哪些 skill"),弱模型上下文一长就混乱——分不清自己该起什么子 agent,甚至错误给自己派活。**之前用 STEP -1 嵌套自检做提示词层兜底,但弱模型不可靠**。现改为**互斥安装**:init 时选了 goal 就不能选其他,反之亦然,从源头不让多套子 agent 指令进同一个 skill 文件。互斥校验在 `init.js` 的 `checkMutex` + `multiSelect` 联动两处兜(静默 `--enhancements` 路径 + 交互式)。review 增强因此**删除了 STEP -1 嵌套自检那套复杂逻辑**——互斥后不存在嵌套场景,不需要。goal 与 review 的质量门职责划分:goal 用自己的 fix→test→熔断循环(不依赖 review);review 服务于不用 goal 的 standalone OpenSpec 场景。
+8. **goal 与其他增强互斥**(原"嵌套子 agent"问题的根治):goal + review/skill-align 同时启用时,会往同一个 openspec skill 文件里塞多套"起子 agent"指令(goal 注入"你是 PROPOSE/APPLY 子 agent"、review 注入"遇到 Review task 起子 agent"、skill-align 注入"问用户用哪些 skill"),弱模型上下文一长就混乱——分不清自己该起什么子 agent,甚至错误给自己派活。**之前用 STEP -1 嵌套自检做提示词层兜底,但弱模型不可靠**。现改为**互斥安装**:init 时选了 goal 就不能选其他,反之亦然,从源头不让多套子 agent 指令进同一个 skill 文件。互斥校验在 `init.js` 的 `checkMutex` + `multiSelect` 联动两处兜(静默 `--enhancements` 路径 + 交互式)。review 增强因此**删除了 STEP -1 嵌套自检那套复杂逻辑**——互斥后不存在嵌套场景,不需要。goal 与 review 的质量门职责划分:goal 用自己的 fix→test→熔断循环(不依赖 review);review 服务于不用 goal 的 standalone OpenSpec 场景。**注:互斥只解决与 os-stronger goal 的共存**。若用户用外部编排层(自己写的 goal 类工具、第三方 agent 编排器)嵌套调用 review,STEP -1 删后的 review 不再有"子 agent 自检"兜底,在 max_depth=1 平台可能失败——但 os-stronger 不覆盖此场景(外部编排超出控制范围)。
 
 9. **uninstall 顺序**:`--uninstall` 会先卸载全局 CLI，用户之后无法跑 `--restore`。正确顺序是先在各项目 restore 再卸载。CLI 提示已说明但无法强制。
 

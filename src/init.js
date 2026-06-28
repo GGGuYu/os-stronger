@@ -17,7 +17,8 @@ const enhancements = {
 // 现状:goal 与所有其他增强互斥——goal 是独立编排层(自己起 propose/apply 子 agent),
 // 而 review/skill-align 会 patch 同样的 openspec skill 注入"起子 agent"指令,
 // 两套并存会让弱模型在读 skill 时分不清该起什么子 agent,实测冲突。互斥从源头杜绝。
-// key 是"锁",意思是"选了 key 就不能选组里其他任何项"。goal 同时是 review 组和 skill-align 组的锁。
+// 结构:key 是"锁",值是数组——选了 key 就不能选数组里的任何项。
+// 当前 goal 是 review 和 skill-align 的共同锁(一组多 others)。
 function getMutexGroups() {
   return {
     'goal': ['review', 'skill-align'],
@@ -30,10 +31,10 @@ function checkMutex(selectedIds, mutexGroups) {
     if (selectedIds.includes(lock)) {
       const conflict = others.filter(o => selectedIds.includes(o));
       if (conflict.length > 0) {
-        return `goal 与 ${conflict.join(', ')} 互斥,不能同时启用。\n` +
-               `  原因:goal 是独立编排层,与 review/skill-align 同 patch 同 skill 文件会注入多套子 agent 指令,弱模型会混乱。\n` +
-               `  解决:要么只用 goal(编排 + 自带 fix→test→熔断质量门),要么用 review/skill-align(流程增强)。\n` +
-               `  若要 goal + 审查:goal 自己有 test change 做语义评估 + 测试,已是质量门。`;
+        return `${lock} 与 ${conflict.join(', ')} 互斥,不能同时启用。\n` +
+               `  原因:${lock} 是独立编排层,与 ${conflict.join('/')} 同 patch 同 skill 文件会注入多套子 agent 指令,弱模型会混乱。\n` +
+               `  解决:要么只用 ${lock}(编排 + 自带 fix→test→熔断质量门),要么用 ${conflict.join('/')}(流程增强)。\n` +
+               `  若要 ${lock} + 审查:${lock} 自己有 test change 做语义评估 + 测试,已是质量门。`;
       }
     }
   }
@@ -95,8 +96,9 @@ function multiSelect(options, mutexGroups = {}) {
         const style = i === current ? ANSI.cyan : '';
         out += `  ${pointer} ${checkbox} ${style}${options[i].label}${ANSI.reset}${ANSI.clearLine}\n`;
       }
-      const mutexHint = Object.keys(mutexGroups).length > 0
-        ? ' | \x1b[2mgoal 与其他互斥\x1b[0m'
+      const lockNames = Object.keys(mutexGroups).join('/');
+      const mutexHint = lockNames
+        ? ` | \x1b[2m${lockNames} 与其他互斥\x1b[0m`
         : '';
       out += `  ${ANSI.dim}(空格切换, 回车确认, a 全选/取消${mutexHint})${ANSI.reset}${ANSI.clearLine}`;
       process.stdout.write(out);
@@ -124,7 +126,14 @@ function multiSelect(options, mutexGroups = {}) {
       else if (key.name === 'c' && key.ctrl) { cleanup(); process.exit(0); }
       else if (str === 'a') {
         const all = selected.every(s => s);
-        selected = selected.map(() => !all); render();
+        selected = selected.map(() => !all);
+        if (!all) {
+          // 全选时按 mutex 联动取消冲突项(避免全亮却回车报互斥)
+          for (let i = 0; i < options.length; i++) {
+            if (selected[i]) applyMutex(options[i].id);
+          }
+        }
+        render();
       }
     }
 
