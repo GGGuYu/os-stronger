@@ -1,6 +1,6 @@
 {
   "name": "os-stronger",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "OpenSpec enhancement layer — modular, pluggable, zero-dependency",
   "bin": {
     "os-stronger": "bin/os-stronger"

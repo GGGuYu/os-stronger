@@ -295,6 +295,13 @@ ${ARCHIVE_MANDATORY_NOTE}
 
 **⚠️ 你现在处于 SDD(规范驱动开发)套件管理的工作状态,不是普通的自由发挥。** 不要按普通情况错把系统内置的 todo 工具当成你做 plan / 跟踪任务的工具——那会触发平台持续注入"维护内置 todo"的提示词,干扰你维护真正的任务源。在 OpenSpec 工作流下,你的任务列表就是这次提案的 \`tasks.md\`,这是 goal 编排判断 change 进度、推进状态的唯一依据。你必须去**维护 OpenSpec 的规范驱动开发系列文档**:做完一个任务就在 \`tasks.md\` 把 \`- [ ]\` 标成 \`- [x]\`,不要用内置 todo 工具替代这个动作。无视 \`tasks.md\`、只用内置 todo 会导致 change 卡住、goal 流程断掉。
 
+**关于进度可见性**:如果你担心不用内置 todo 用户看不到进度,不必担心——你可以在**完成一个任务、开始下一个**时,向用户简短输出当前进度即可,例如:
+\`\`\`
+- [x] 2.2 运行 generate-storyboard.mjs 生成 storyboard.json(刚完成)
+- [ ] 2.3 生成审阅报告 review-report.html 并提交用户确认(下一步)
+\`\`\`
+不必每个任务都输出——隔几个任务、或在关键节点输出一次即可。这种"输出刚完成 + 即将要做"的方式已足够给用户进度可见性,根本不需要内置 todo 的 UI。
+
 ## Your Task
 
 1. Follow the \`openspec-apply-change\` skill workflow:
